@@ -14,6 +14,7 @@
 
 /* Set this macro to 1 to enable debugging information */
 #define SOBELF_DEBUG 0
+#define SIZE_STENCIL 5
 
 /* Represent one pixel from the image */
 typedef struct pixel
@@ -787,6 +788,11 @@ typedef struct img_info
     int width;
     int height; 
     int order;
+    int order_sub_img;
+    int blur_up_from;
+    int blur_up_to;
+    int blur_down_from;
+    int blur_down_to;
 } img_info;
 
 
@@ -855,6 +861,15 @@ void get_process_per_img(int *process_per_img, int* n_sub_imgs, int n_process, i
         for(i=0; i<n_process; i++)
             process_per_img[i%n_images] += 1;
     }
+}
+
+void get_img_divisions(int *divisions, int n_parts, int height){
+    // ASSUME : height >> n_process_for_the_img --> DO NOT CHECK IF step_in_height > min
+    int i;
+    int step = height / n_parts;
+    for(i=0; i<n_parts; i++)
+        divisions[i] = (i+1)*step;
+    divisions[n_parts - 1] = height;
 }
 
 // Main entry point
@@ -932,13 +947,35 @@ int main( int argc, char ** argv )
                 memcpy(pixel_array, image->p[i], n_bytes_msg - sizeof(img_info));
                 ++index;
             } else {
-                int n_process_for_blur = process_per_img[i]/5
-                for(j=0; j<)
-                /* 
-                    - Define the # of threads working of blurring
-                    - Flatten them (MEF ghost cells)
-                    - Find method to merge them (ghost cells)
-                */
+                int step_in_height = image->height[i] / process_per_img[i];
+                int lines_consumed = 0;
+                int beg_line, end_line, sub_height;
+
+                int divisions[process_per_img[i]];
+                get_img_divisions(divisions, process_per_img[i], image->height);
+
+                for(j=0; j<process_per_img[i]; j++){
+                    beg_line = (j == 0)? 0 : divisions[j-1];
+                    end_line = divisions[j] - 1;
+                    sub_height = end_line - beg_line + 1;
+
+                    // Allocate memory
+                    n_bytes_msg = sizeof(img_info) + (image->width[i] * sub_height * sizeof(pixel));
+                    flat_imgs[index] = (int *)malloc(n_bytes_msg);
+                    cast_flat_img(flat_imgs[index], &infos, &pixel_array);
+
+                    // Fill datas
+                    infos->width = image->width[i];
+                    infos->height = sub_height;
+                    infos->order = i;
+                    infos->order_sub_img = j;
+                    infos->blur_down_from = ;
+                    infos->blur_down_to = ;
+                    infos->blur_up_from = ;
+                    infos->blur_up_to = ;
+                    memcpy(pixel_array, image->p[i], n_bytes_msg - sizeof(img_info));
+                    ++index;
+                }
             }
         }
 
@@ -1019,7 +1056,7 @@ int main( int argc, char ** argv )
             cast_flat_img(raw_msg, &infos, &pixel_array);
 
             apply_gray_filter_one_img(infos->width, infos->height, pixel_array);
-            apply_blur_filter_one_img(infos->width, infos->height, pixel_array, 5, 20);
+            apply_blur_filter_one_img(infos->width, infos->height, pixel_array, SIZE_STENCIL, 20);
             apply_sobel_filter_one_img(infos->width, infos->height, pixel_array);
 
             MPI_Send(raw_msg, n_int_rcvd, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
