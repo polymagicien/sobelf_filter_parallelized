@@ -38,5 +38,8 @@ $(OBJ_DIR)/%.o : $(SRC_DIR)/%.c
 sobelf:$(OBJ)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
+test:
+	mpicc -o test/test test/main.c
+
 clean:
 	rm -f sobelf $(OBJ)
