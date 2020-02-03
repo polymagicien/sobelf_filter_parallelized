@@ -873,7 +873,12 @@ void get_img_divisions(int *divisions, int n_parts, int height){
     divisions[n_parts - 1] = height;
 }
 
-void get_subdivisions(img_infos *info_array, pixel **pixel_array, animated_gif image, int n_divisions){
+
+int get_n_subdivisions(int height, int width, int n_process){
+    return 1;
+}
+
+void get_subdivisions(img_infos *info_array, pixel **pixel_array, animated_gif image, i, int n_divisions){
     if(n_divisions == 1){
         n_bytes_msg = image->width[i] * image->height[i] * sizeof(pixel);
         infos->width = image->width[i];
@@ -881,14 +886,14 @@ void get_subdivisions(img_infos *info_array, pixel **pixel_array, animated_gif i
         infos->order = i;
         ++index;
     } else {
-        int step_in_height = image->height[i] / process_per_img[i];
+        int step_in_height = image->height[i] / n_divisions;
         int lines_consumed = 0;
         int beg_line, end_line, sub_height;
 
-        int divisions[process_per_img[i]];
-        get_img_divisions(divisions, process_per_img[i], image->height);
+        int divisions[n_divisions];
+        get_img_divisions(divisions, n_divisions, image->height);
 
-        for(j=0; j<process_per_img[i]; j++){
+        for(j=0; j<n_divisions; j++){
             beg_line = (j == 0)? 0 : divisions[j-1];
             end_line = divisions[j] - 1;
             sub_height = end_line - beg_line + 1;
@@ -979,7 +984,7 @@ int main( int argc, char ** argv )
         int index = 0;
         int n_subdivisions;
         for(i=0; i<n_images; i++){
-            n_subdivisions = get_n_subdivisions(, process_per_img[i]);
+            n_subdivisions = get_n_subdivisions(image->height[i], image->width[i], process_per_img[i]);
 
             pixel *address_to_send[n_subdivisions];
             infos infos_per_sub_img[n_subdivisions];
