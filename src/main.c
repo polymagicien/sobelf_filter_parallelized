@@ -852,6 +852,7 @@ void get_process_per_img(int *process_per_img, int* n_sub_imgs, int n_process, i
     int i;
     for(i=0; i<n_images; i++)   // Initialisation
         process_per_img[i] = 0;
+
     if(n_process <= n_images){
         *n_sub_imgs = n_images;
         for(i=0; i<n_images; i++)
@@ -872,6 +873,46 @@ void get_img_divisions(int *divisions, int n_parts, int height){
     divisions[n_parts - 1] = height;
 }
 
+void get_subdivisions(img_infos *info_array, pixel **pixel_array, animated_gif image, int n_divisions){
+    if(n_divisions == 1){
+        n_bytes_msg = image->width[i] * image->height[i] * sizeof(pixel);
+        infos->width = image->width[i];
+        infos->height = image->height[i];
+        infos->order = i;
+        ++index;
+    } else {
+        int step_in_height = image->height[i] / process_per_img[i];
+        int lines_consumed = 0;
+        int beg_line, end_line, sub_height;
+
+        int divisions[process_per_img[i]];
+        get_img_divisions(divisions, process_per_img[i], image->height);
+
+        for(j=0; j<process_per_img[i]; j++){
+            beg_line = (j == 0)? 0 : divisions[j-1];
+            end_line = divisions[j] - 1;
+            sub_height = end_line - beg_line + 1;
+
+            // Allocate memory
+            n_bytes_msg = sizeof(img_info) + (image->width[i] * sub_height * sizeof(pixel));
+            flat_imgs[index] = (int *)malloc(n_bytes_msg);
+            cast_flat_img(flat_imgs[index], &infos, &pixel_array);
+
+            // Fill datas
+            infos->width = image->width[i];
+            infos->height = sub_height;
+            infos->order = i;
+            infos->order_sub_img = j;
+            infos->blur_down_from = ;
+            infos->blur_down_to = ;
+            infos->blur_up_from = ;
+            infos->blur_up_to = ;
+            memcpy(pixel_array, image->p[i], n_bytes_msg - sizeof(img_info));
+            ++index;
+        }
+    }
+}
+
 // Main entry point
 int main( int argc, char ** argv )
 {
@@ -879,6 +920,7 @@ int main( int argc, char ** argv )
     char * input_filename ; 
     char * output_filename ;
     animated_gif * image ;
+    int height, width;
 
     // Measure performance
     FILE *fp; 
@@ -896,7 +938,7 @@ int main( int argc, char ** argv )
     int n_int_rcvd;
     int n_images;
     pixel *pixel_array;
-    img_info *infos;
+    img_info infos;
 
     // Check command-line arguments
     if ( argc < 3 )
@@ -908,6 +950,7 @@ int main( int argc, char ** argv )
         is_file_performance = 1;
         perf_filename = argv[3];
     }
+
     input_filename = argv[1] ;
     output_filename = argv[2] ;
 
@@ -931,52 +974,18 @@ int main( int argc, char ** argv )
         get_process_per_img(process_per_img, &n_sub_img, n_process, n_images);
         
         // Divide imgs
-        int *flat_imgs[n_sub_img];
+        int *flat_imgs;
         int n_bytes_msg;
         int index = 0;
+        int n_subdivisions;
         for(i=0; i<n_images; i++){
-            if(process_per_img[i] == 1){
-                // Compute addresses
-                n_bytes_msg = sizeof(img_info) + (image->width[i] * image->height[i] * sizeof(pixel));
-                flat_imgs[index] = (int *)malloc(n_bytes_msg);
-                cast_flat_img(flat_imgs[index], &infos, &pixel_array);
-                // Fill datas
-                infos->width = image->width[i];
-                infos->height = image->height[i];
-                infos->order = i;
-                memcpy(pixel_array, image->p[i], n_bytes_msg - sizeof(img_info));
-                ++index;
-            } else {
-                int step_in_height = image->height[i] / process_per_img[i];
-                int lines_consumed = 0;
-                int beg_line, end_line, sub_height;
+            n_subdivisions = get_n_subdivisions(, process_per_img[i]);
 
-                int divisions[process_per_img[i]];
-                get_img_divisions(divisions, process_per_img[i], image->height);
+            pixel *address_to_send[n_subdivisions];
+            infos infos_per_sub_img[n_subdivisions];
 
-                for(j=0; j<process_per_img[i]; j++){
-                    beg_line = (j == 0)? 0 : divisions[j-1];
-                    end_line = divisions[j] - 1;
-                    sub_height = end_line - beg_line + 1;
+            get_subdivisions(&infos, &to_send, n_subdivisions, image, i);
 
-                    // Allocate memory
-                    n_bytes_msg = sizeof(img_info) + (image->width[i] * sub_height * sizeof(pixel));
-                    flat_imgs[index] = (int *)malloc(n_bytes_msg);
-                    cast_flat_img(flat_imgs[index], &infos, &pixel_array);
-
-                    // Fill datas
-                    infos->width = image->width[i];
-                    infos->height = sub_height;
-                    infos->order = i;
-                    infos->order_sub_img = j;
-                    infos->blur_down_from = ;
-                    infos->blur_down_to = ;
-                    infos->blur_up_from = ;
-                    infos->blur_up_to = ;
-                    memcpy(pixel_array, image->p[i], n_bytes_msg - sizeof(img_info));
-                    ++index;
-                }
-            }
         }
 
         // Flatten images
