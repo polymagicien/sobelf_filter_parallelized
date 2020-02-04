@@ -19,3 +19,6 @@ images/processed/TimelyHugeGnu-sobel.gif
 images/processed/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large-sobel.gif
 obj/main.o
 sobelf
+sobelf
+obj/main.o
+performance/perf_NODE_{1}_proc_{2}.txt
