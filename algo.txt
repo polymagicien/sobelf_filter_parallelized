@@ -1,61 +1,24 @@
+entries : n_images, n_process, images_size
 
-img_info{
-    width, heigth, start_column_ghost, end_column_ghost, start_column_real, end_column_real 
-}
+Issues : 
+    - cannot predict time spend on blur (examples : between 1 and 9 iterations)
+    - cannot predict (can we?) distribution of processes per node (helps if balanced)
 
+if n_process < n_images && images_size.are_same():
+    static / dynamic allocation (scatter) per img
 
-image = load_images()
-n_process_per_img = get_process_per_img(image, n_total_process)
-total_infos = []
-total_subdivisions = []
+if n_process < n_images && image_size.differ_a_lot():
+    cut images and worker pool per cut
 
-for img in image:
-    n_subdivisions = get_n_subdivisions(img, n_process_per_img[img])        // n_subdivisions <= n_process_per_img[img]
-    subdivisions = get_subdivisions()                                       // returns img_info[] and *pixel[]
-    total_infos += infos
-    total_subdivisions += subdivisions
+if n_process > n_images && image_size.are_same():
+    cut image in same number of parts
+    worker_pool per cut 
 
-
-///
-
-// Sending ?
-
-img_sub = [][] tableau of tables in which [i] is a table of the lenghts of the subdivisions
-
-for img in images:
-
-    //create the column typ for tis image
-    mpi_type_vector(height, 3*nb_columns, width*3, mpi_int, rowtype, ierr)
-    call mpi_type_commit(rowtype, ierr)
-
-    //send to the process that will handle this image
-    create evironment with all the assigned process
-    MPI_Scatter(début_de_limage, nb_parts,rowtype, )
+if n_process > n_images && image_size.differ_a_lot():
+    cut image weirdly
+    worker_pool per cut
 
 
-    int MPI_Scatter (
- void *sendbuf(in)
-,
- int sendcount(in)
-,
- MPI_Datatype sndtatyp(in)
-,
- void *recvbuf(out)
-,
- int recvcount(in)
-,
- MPI_Datatype rcvtatyp(in)
-,
- int root(in)
-,
- MPI_Comm comm(in) );
-
-
-
-! send a row
-call mpi_send(a, 1, rowtype, dest, tag, comm, ierr)
-
-
-
-
-// Merging ?
+CALCUL DE GAIN SI COUPE
+    - pp = ppcm(n_images, n_process) --> n_images / pp divisions
+    ( min de divisions pour que chaque worker ait un travail équitable )

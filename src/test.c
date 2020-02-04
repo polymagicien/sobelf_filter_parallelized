@@ -777,6 +777,30 @@ void test_send_huge_img(int argc, char **argv){
 }
 
 
+void test_communicators(int argc, char **argv){
+    int globalRank, localRank;
+    MPI_Comm nodeComm, masterComm;
+
+    MPI_Comm_rank( MPI_COMM_WORLD, &globalRank );
+    MPI_Comm_split_type( MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, globalRank, MPI_INFO_NULL, &nodeComm );
+    MPI_Comm_rank( nodeComm, &localRank);
+    MPI_Comm_split( MPI_COMM_WORLD, localRank, globalRank, &masterComm );
+
+    MPI_Comm_free( &nodeComm );
+
+    if ( localRank == 0 ) {
+        // Now, each process of masterComm is on a different node
+        // so you can play with them to do what you want
+        int mRank, mSize;
+        MPI_Comm_rank( masterComm, &mRank );
+        MPI_Comm_size( masterComm, &mSize );
+        // do something here
+    }
+
+    MPI_Comm_free( &masterComm );
+
+}
+
 // Main entry point
 int main( int argc, char ** argv )
 {
@@ -796,6 +820,9 @@ int main( int argc, char ** argv )
             break;
         case 4:
             test_send_huge_img(argc, argv + 1);
+            break;
+        case 5:
+            test_communicators(argc, argv + 1);
             break;
         default:
             printf("Wrong argument\n");
