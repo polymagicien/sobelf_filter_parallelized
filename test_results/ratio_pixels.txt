@@ -1,115 +1,82 @@
-images/original/051009.vince.gif ---- 152.643655 
-images/original/1.gif ---- 203.054299 
-images/original/1.gif ---- 210.105140 
-images/original/1.gif ---- 193.197115 
-images/original/1.gif ---- 212.078385 
-images/original/1.gif ---- 191.165865 
-images/original/1.gif ---- 257.153179 
-images/original/1.gif ---- 220.477528 
-images/original/1.gif ---- 208.172170 
-images/original/1.gif ---- 247.668539 
-images/original/1.gif ---- 166.243961 
-images/original/200_s.gif ---- 22.628205 
-images/original/9815573.gif ---- 96.570397 
-images/original/9815573.gif ---- 64.678457 
-images/original/9815573.gif ---- 98.290598 
-images/original/9815573.gif ---- 79.534884 
-images/original/9815573.gif ---- 96.301020 
-images/original/9815573.gif ---- 78.156780 
-images/original/9815573.gif ---- 87.761905 
-images/original/9815573.gif ---- 78.446809 
-images/original/9815573.gif ---- 96.413613 
-images/original/9815573.gif ---- 59.442060 
-images/original/australian-flag-large.gif ---- 187.751479 
-images/original/Campusplan-Hausnr.gif ---- 259.431193 
-images/original/Campusplan-Mobilitaetsbeschraenkte.gif ---- 259.511178 
-images/original/fire.gif ---- 4.545455 
-images/original/fire.gif ---- 0.500000 
-images/original/fire.gif ---- 1.000000 
-images/original/fire.gif ---- 0.555556 
-images/original/fire.gif ---- 0.500000 
-images/original/fire.gif ---- 0.500000 
-images/original/fire.gif ---- 0.625000 
-images/original/fire.gif ---- 0.625000 
-images/original/fire.gif ---- 0.555556 
-images/original/fire.gif ---- 0.555556 
-images/original/fire.gif ---- 0.555556 
-images/original/fire.gif ---- 0.625000 
-images/original/fire.gif ---- 0.625000 
-images/original/fire.gif ---- 0.555556 
-images/original/fire.gif ---- 0.625000 
-images/original/fire.gif ---- 0.454545 
-images/original/fire.gif ---- 0.909091 
-images/original/fire.gif ---- 0.555556 
-images/original/fire.gif ---- 0.454545 
-images/original/fire.gif ---- 0.000000 
-images/original/fire.gif ---- 0.625000 
-images/original/fire.gif ---- 0.625000 
-images/original/fire.gif ---- 0.454545 
-images/original/fire.gif ---- 0.625000 
-images/original/fire.gif ---- 0.500000 
-images/original/fire.gif ---- 0.500000 
-images/original/fire.gif ---- 0.454545 
-images/original/fire.gif ---- 0.555556 
-images/original/fire.gif ---- 0.625000 
-images/original/fire.gif ---- 0.500000 
-images/original/fire.gif ---- 0.500000 
-images/original/fire.gif ---- 0.500000 
-images/original/fire.gif ---- 0.500000 
-images/original/frame_002.gif ---- 35.191388 
-images/original/giphy-3.gif ---- 229.956156 
-images/original/giphy-3.gif ---- 131.028552 
-images/original/giphy-3.gif ---- 161.849827 
-images/original/giphy-3.gif ---- 153.331148 
-images/original/giphy-3.gif ---- 112.595808 
-images/original/Mandelbrot-large.gif ---- 34.573050 
-images/original/Mandelbrot-large.gif ---- 69.361427 
-images/original/Mandelbrot-large.gif ---- 27.042658 
-images/original/Mandelbrot-large.gif ---- 54.777124 
-images/original/Mandelbrot-large.gif ---- 82.288349 
-images/original/Mandelbrot-large.gif ---- 107.445536 
-images/original/Mandelbrot-large.gif ---- 108.134975 
-images/original/Mandelbrot-large.gif ---- 108.216456 
-images/original/Mandelbrot-large.gif ---- 108.488701 
-images/original/Mandelbrot-large.gif ---- 81.443812 
-images/original/Mandelbrot-large.gif ---- 108.744098 
-images/original/Mandelbrot-large.gif ---- 108.552444 
-images/original/Mandelbrot-large.gif ---- 135.475852 
-images/original/Mandelbrot-large.gif ---- 107.940482 
-images/original/Mandelbrot-large.gif ---- 134.574918 
-images/original/Mandelbrot-large.gif ---- 108.576886 
-images/original/Mandelbrot-large.gif ---- 108.834928 
-images/original/Mandelbrot-large.gif ---- 81.709135 
-images/original/Mandelbrot-large.gif ---- 109.323557 
-images/original/Mandelbrot-large.gif ---- 109.037999 
-images/original/porsche.gif ---- 42.603627 
-images/original/Produits_sous_linux.gif ---- 76.340189 
-images/original/TimelyHugeGnu.gif ---- 45.497382 
-images/original/TimelyHugeGnu.gif ---- 64.699248 
-images/original/TimelyHugeGnu.gif ---- 77.500000 
-images/original/TimelyHugeGnu.gif ---- 64.488491 
-images/original/TimelyHugeGnu.gif ---- 63.908629 
-images/original/TimelyHugeGnu.gif ---- 64.272959 
-images/original/TimelyHugeGnu.gif ---- 39.964706 
-images/original/TimelyHugeGnu.gif ---- 79.263323 
-images/original/TimelyHugeGnu.gif ---- 51.859756 
-images/original/TimelyHugeGnu.gif ---- 58.461538 
-images/original/TimelyHugeGnu.gif ---- 45.714286 
-images/original/TimelyHugeGnu.gif ---- 77.349398 
-images/original/TimelyHugeGnu.gif ---- 65.621762 
-images/original/TimelyHugeGnu.gif ---- 53.161994 
-images/original/TimelyHugeGnu.gif ---- 72.797101 
-images/original/TimelyHugeGnu.gif ---- 76.136364 
-images/original/TimelyHugeGnu.gif ---- 51.911315 
-images/original/TimelyHugeGnu.gif ---- 52.300613 
-images/original/TimelyHugeGnu.gif ---- 47.251381 
-images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif ---- 158.495261 
-images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif ---- 141.752577 
-images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif ---- 139.413265 
-images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif ---- 142.625330 
-images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif ---- 138.235294 
-images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif ---- 169.467085 
-images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif ---- 138.907455 
-images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif ---- 166.292308 
-images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif ---- 112.394015 
-images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif ---- 140.467532 
+23.173221 ---- 6     images/original/051009.vince.gif 
+31.074495 ---- 8     images/original/1.gif 
+35.370024 ---- 9     images/original/1.gif 
+31.648416 ---- 8     images/original/1.gif 
+35.926981 ---- 9     images/original/1.gif 
+31.669211 ---- 8     images/original/1.gif 
+35.396956 ---- 9     images/original/1.gif 
+31.587921 ---- 8     images/original/1.gif 
+35.329738 ---- 9     images/original/1.gif 
+35.509319 ---- 9     images/original/1.gif 
+27.854548 ---- 7     images/original/1.gif 
+5.035911 ---- 1     images/original/200_s.gif 
+15.829031 ---- 4     images/original/9815573.gif 
+13.776021 ---- 3     images/original/9815573.gif 
+17.240288 ---- 4     images/original/9815573.gif 
+17.078461 ---- 4     images/original/9815573.gif 
+17.311913 ---- 4     images/original/9815573.gif 
+17.716776 ---- 4     images/original/9815573.gif 
+17.025221 ---- 4     images/original/9815573.gif 
+17.307978 ---- 4     images/original/9815573.gif 
+17.353874 ---- 4     images/original/9815573.gif 
+13.298832 ---- 3     images/original/9815573.gif 
+27.216311 ---- 6     images/original/australian-flag-large.gif 
+29.019000 ---- 7     images/original/Campusplan-Hausnr.gif 
+28.947041 ---- 7     images/original/Campusplan-Mobilitaetsbeschraenkte.gif 
+6.362031 ---- 1     images/original/frame_002.gif 
+26.714351 ---- 7     images/original/giphy-3.gif 
+15.480924 ---- 4     images/original/giphy-3.gif 
+22.558963 ---- 6     images/original/giphy-3.gif 
+20.056230 ---- 5     images/original/giphy-3.gif 
+15.680242 ---- 4     images/original/giphy-3.gif 
+5.287018 ---- 1     images/original/Mandelbrot-large.gif 
+8.988024 ---- 2     images/original/Mandelbrot-large.gif 
+4.966129 ---- 1     images/original/Mandelbrot-large.gif 
+9.040606 ---- 2     images/original/Mandelbrot-large.gif 
+12.985094 ---- 3     images/original/Mandelbrot-large.gif 
+17.174002 ---- 4     images/original/Mandelbrot-large.gif 
+17.296715 ---- 4     images/original/Mandelbrot-large.gif 
+17.000959 ---- 4     images/original/Mandelbrot-large.gif 
+17.301503 ---- 4     images/original/Mandelbrot-large.gif 
+13.317501 ---- 3     images/original/Mandelbrot-large.gif 
+17.826191 ---- 4     images/original/Mandelbrot-large.gif 
+17.356986 ---- 4     images/original/Mandelbrot-large.gif 
+21.613197 ---- 5     images/original/Mandelbrot-large.gif 
+17.372788 ---- 4     images/original/Mandelbrot-large.gif 
+21.411611 ---- 5     images/original/Mandelbrot-large.gif 
+17.141170 ---- 4     images/original/Mandelbrot-large.gif 
+17.231847 ---- 4     images/original/Mandelbrot-large.gif 
+12.886787 ---- 3     images/original/Mandelbrot-large.gif 
+17.339833 ---- 4     images/original/Mandelbrot-large.gif 
+17.230852 ---- 4     images/original/Mandelbrot-large.gif 
+8.244244 ---- 2     images/original/porsche.gif 
+23.617494 ---- 5     images/original/Produits_sous_linux.gif 
+7.739847 ---- 2     images/original/TimelyHugeGnu.gif 
+12.789743 ---- 3     images/original/TimelyHugeGnu.gif 
+12.537863 ---- 3     images/original/TimelyHugeGnu.gif 
+12.459878 ---- 3     images/original/TimelyHugeGnu.gif 
+12.604396 ---- 3     images/original/TimelyHugeGnu.gif 
+13.038882 ---- 3     images/original/TimelyHugeGnu.gif 
+9.184279 ---- 2     images/original/TimelyHugeGnu.gif 
+12.628541 ---- 3     images/original/TimelyHugeGnu.gif 
+8.824576 ---- 2     images/original/TimelyHugeGnu.gif 
+12.858204 ---- 3     images/original/TimelyHugeGnu.gif 
+8.866997 ---- 2     images/original/TimelyHugeGnu.gif 
+12.687814 ---- 3     images/original/TimelyHugeGnu.gif 
+12.558528 ---- 3     images/original/TimelyHugeGnu.gif 
+8.741453 ---- 2     images/original/TimelyHugeGnu.gif 
+12.610086 ---- 3     images/original/TimelyHugeGnu.gif 
+12.712481 ---- 3     images/original/TimelyHugeGnu.gif 
+8.863614 ---- 2     images/original/TimelyHugeGnu.gif 
+8.782121 ---- 2     images/original/TimelyHugeGnu.gif 
+9.158242 ---- 2     images/original/TimelyHugeGnu.gif 
+27.101757 ---- 6     images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif 
+24.490829 ---- 6     images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif 
+23.981252 ---- 6     images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif 
+23.873026 ---- 6     images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif 
+24.409960 ---- 6     images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif 
+24.718520 ---- 6     images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif 
+25.316622 ---- 6     images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif 
+25.240435 ---- 6     images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif 
+21.306332 ---- 5     images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif 
+25.337264 ---- 6     images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif 
