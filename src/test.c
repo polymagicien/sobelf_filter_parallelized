@@ -627,11 +627,96 @@ void test_filters( int argc, char **argv )
 }
 
 
+void print_array(pixel p[], int size, int width, char *title){
+    int i;
+
+    printf("---------- PRINT %s", title);
+    for(i = 0; i < size; i++){
+        if(i%width == 0)
+            printf("\n");
+        printf("%d ", p[i].b);
+    }
+    printf("\n");
+}
+
+void test_mpi_vector(int argc, char **argv){
+
+    // MPI
+    int n_process, rank;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &n_process);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Status status;
+    // MPI_Request req;
+
+    printf("rank : %d\n", rank);
+
+    // Loop
+    int i;
+
+    
+    int size_rcvd;
+    int size = 99;
+    int height = 11;
+    int width = 9;
+
+    if(rank == 0){
+
+        // Initialisation
+        pixel pixel_array[size];
+        // srand48(11);
+        for(i = 0; i < size; i++){
+            pixel_array[i].b = i;
+            pixel_array[i].r = i;
+            pixel_array[i].g = i;
+        }
+
+        // Declare type
+        MPI_Datatype COLUMN;
+        MPI_Type_vector(height, 3*1, width*3, MPI_INT, &COLUMN); // One column (width of 1 pixel)
+        MPI_Type_create_resized(COLUMN, 0, 3*sizeof(int), &COLUMN);
+        MPI_Type_commit(&COLUMN);
+
+
+        print_array(pixel_array, size, width, "BEFORE");
+
+        // Sending
+        MPI_Send(pixel_array+2, 4, COLUMN, 1, 0, MPI_COMM_WORLD);
+        MPI_Recv(pixel_array+3, 2, COLUMN, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+
+        print_array(pixel_array, size, width, "AFTER");    
+
+    } else {
+        // Get size
+        MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        MPI_Get_count(&status, MPI_INT, &size_rcvd);
+        // printf("Count : %d\n", size_rcvd); // --> Prints the right number of ints
+
+        pixel array[size_rcvd/3];
+        MPI_Recv(array, size_rcvd, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+
+        for(i = 0; i < size_rcvd/3; i++){
+            printf("%d ", array[i].b);
+            array[i].b += 100;
+            array[i].g += 100;
+            array[i].r += 100;
+        }
+        printf("\n");
+
+        int new_size = size_rcvd - 2 * height * sizeof(pixel) / sizeof(int);
+        MPI_Send(array + height, new_size, MPI_INT, 0, 0, MPI_COMM_WORLD);
+    }
+
+
+    MPI_Finalize();
+}
+
+
 // Main entry point
 int main( int argc, char ** argv )
 {
     int fun = atoi(argv[1]);
-    printf("%d\n", fun);
+    // printf("%d\n", fun);
 
     switch( fun ){
         case 1:
@@ -639,6 +724,9 @@ int main( int argc, char ** argv )
             break;
         case 2:
             test_filters(argc, argv + 1);
+            break;
+        case 3:
+            test_mpi_vector(argc, argv + 1);
             break;
         default:
             printf("Wrong argument\n");
