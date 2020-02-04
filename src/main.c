@@ -572,6 +572,33 @@ int store_pixels( char * filename, animated_gif * image )
     return 1 ;
 }
 
+
+int load_image_from_file(animated_gif **image , int *n_images, char *input_filename){
+    struct timeval t1, t2;
+    gettimeofday(&t1, NULL);
+    *image = load_pixels( input_filename );
+    *n_images = (*image)->n_images;
+    if ( image == NULL ) { printf("IMAGE NULL"); return 1 ; }
+    gettimeofday(&t2, NULL);
+    // double duration = (t2.tv_sec -t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
+    // printf( "GIF loaded from file %s with %d image(s) in %lf s\n", input_filename, image->n_images, duration);
+    return 0; 
+}
+
+int load_image_from_file(animated_gif **image , int *n_images, char *input_filename){
+    struct timeval t1, t2;
+    gettimeofday(&t1, NULL);
+    *image = load_pixels( input_filename );
+    *n_images = (*image)->n_images;
+    if ( image == NULL ) { printf("IMAGE NULL"); return 1 ; }
+    gettimeofday(&t2, NULL);
+    // double duration = (t2.tv_sec -t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
+    // printf( "GIF loaded from file %s with %d image(s) in %lf s\n", input_filename, image->n_images, duration);
+    return 0; 
+}
+
+/* ************************************ FILTER FUNCTIONS *********************************** */
+
 void apply_gray_filter_one_img(int width, int height, pixel *p)
 {
     int j ;
@@ -783,6 +810,9 @@ void apply_sobel_filter_one_img(int width, int height, pixel *p)
 
 }
 
+
+/* ****************************** MPI COMMUNICATION FUNCTIONS  ***************************** */
+
 typedef struct img_info
 {
     int width;
@@ -800,6 +830,35 @@ void cast_flat_img(int* flat, img_info **infos, pixel **pixel_array){
     *infos = (img_info *)flat;
     *pixel_array = (pixel*)(flat + sizeof(img_info)/sizeof(int));
 }
+
+
+void get_process_per_img(int *process_per_img, int* n_sub_imgs, int n_process, int n_images){
+    int i;
+    for(i=0; i<n_images; i++)   // Initialisation
+        process_per_img[i] = 0;
+
+    if(n_process <= n_images){
+        *n_sub_imgs = n_images;
+        for(i=0; i<n_images; i++)
+            process_per_img[i] = 1;
+    } else {
+        *n_sub_imgs = n_process;
+        for(i=0; i<n_process; i++)
+            process_per_img[i%n_images] += 1;
+    }
+}
+
+void get_img_divisions(int *divisions, int n_parts, int height){
+    // ASSUME : height >> n_process_for_the_img --> DO NOT CHECK IF step_in_height > min
+    int i;
+    int step = height / n_parts;
+    for(i=0; i<n_parts; i++)
+        divisions[i] = (i+1)*step;
+    divisions[n_parts - 1] = height;
+}
+
+
+/* *********************************** UTILITY FUNCTIONS *********************************** */
 
 void print_flat_img(int *flat){
     img_info *infos;
@@ -836,43 +895,8 @@ int is_grey(pixel *p, int size){
     return 1;
 }
 
-int load_image_from_file(animated_gif **image , int *n_images, char *input_filename){
-    struct timeval t1, t2;
-    gettimeofday(&t1, NULL);
-    *image = load_pixels( input_filename );
-    *n_images = (*image)->n_images;
-    if ( image == NULL ) { printf("IMAGE NULL"); return 1 ; }
-    gettimeofday(&t2, NULL);
-    // double duration = (t2.tv_sec -t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
-    // printf( "GIF loaded from file %s with %d image(s) in %lf s\n", input_filename, image->n_images, duration);
-    return 0; 
-}
 
-void get_process_per_img(int *process_per_img, int* n_sub_imgs, int n_process, int n_images){
-    int i;
-    for(i=0; i<n_images; i++)   // Initialisation
-        process_per_img[i] = 0;
-
-    if(n_process <= n_images){
-        *n_sub_imgs = n_images;
-        for(i=0; i<n_images; i++)
-            process_per_img[i] = 1;
-    } else {
-        *n_sub_imgs = n_process;
-        for(i=0; i<n_process; i++)
-            process_per_img[i%n_images] += 1;
-    }
-}
-
-void get_img_divisions(int *divisions, int n_parts, int height){
-    // ASSUME : height >> n_process_for_the_img --> DO NOT CHECK IF step_in_height > min
-    int i;
-    int step = height / n_parts;
-    for(i=0; i<n_parts; i++)
-        divisions[i] = (i+1)*step;
-    divisions[n_parts - 1] = height;
-}
-
+/* ********************************* MPI DECISION FUNCTIONS ******************************** */
 
 int get_n_subdivisions(int height, int width, int n_process){
     return 1;
@@ -918,7 +942,8 @@ void get_subdivisions(img_infos *info_array, pixel **pixel_array, animated_gif i
     }
 }
 
-// Main entry point
+/* ************************************* MAIN FUNCTION ************************************* */
+
 int main( int argc, char ** argv )
 {
     // Loading and saving
@@ -965,11 +990,15 @@ int main( int argc, char ** argv )
     MPI_Comm_size(MPI_COMM_WORLD, &n_process);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    if(rank == 0){
-        // LOAD FILE INTO image
+    if(rank == 0){ // MASTER PROCESS
+
+        // ---------------------------------------------------------------------------------------------
+        /****** LOAD FILE INTO image PHASE ******/
         if(load_image_from_file(&image, &n_images, input_filename) == 1)
             return 1;
 
+
+        // ---------------------------------------------------------------------------------------------
         /****** OPTIMISATION BEGINS ******/
         gettimeofday(&t1, NULL);
         
@@ -985,29 +1014,23 @@ int main( int argc, char ** argv )
         int n_subdivisions;
         for(i=0; i<n_images; i++){
             n_subdivisions = get_n_subdivisions(image->height[i], image->width[i], process_per_img[i]);
-
             pixel *address_to_send[n_subdivisions];
             infos infos_per_sub_img[n_subdivisions];
-
             get_subdivisions(&infos, &to_send, n_subdivisions, image, i);
-
         }
 
         // Flatten images
         int *flat_imgs_modified[n_images];
-
         for(i = 0; i < n_images; i++){
         }
 
-        // Send all images
+        // SENDING PHASE: original images
         for(i=0; i < n_images; i++){
             MPI_Isend(flat_imgs[i], sizeof(flat_imgs[i])/sizeof(int), MPI_INT, (i%(n_process - 1)) + 1, 0, MPI_COMM_WORLD, &req);
-#ifdef DEBUG
-    print_flat_img(flat_imgs[i]);
-#endif
+
         }
 
-        // Receive modified images
+        // RECEIVING PHASE: modified images
         MPI_Request req_array[n_images];
         MPI_Status status_array[n_images];
         for(i=0; i < n_images; i++){
@@ -1016,7 +1039,6 @@ int main( int argc, char ** argv )
             flat_imgs_modified[i] = (int *)malloc(n_int_rcvd*sizeof(int));
             MPI_Irecv(flat_imgs_modified[i], n_int_rcvd, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &(req_array[i]));
         }
-
         MPI_Waitall(n_images, req_array, status_array);
 
         // Send "end" signal to processes
@@ -1029,9 +1051,11 @@ int main( int argc, char ** argv )
             cast_flat_img(flat_imgs_modified[i], &infos, &pixel_array);
             image->p[infos->order] = pixel_array;
         }
-
         /****** OPTIMISATION ENDS ******/
 
+
+        // ---------------------------------------------------------------------------------------------
+        /****** CREATE GIF AND EXPORTATION ******/
         gettimeofday(&t2, NULL);
         duration = (t2.tv_sec-t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
         if(is_file_performance == 1){
@@ -1040,9 +1064,10 @@ int main( int argc, char ** argv )
             fclose(fp);
         }
 
-        // EXPORTATION
+        // export the new gif
         gettimeofday(&t1, NULL);
-        if ( !store_pixels( output_filename, image ) ) { return 1 ; }
+        if (!store_pixels(output_filename, image))
+            return 1;
         gettimeofday(&t2, NULL);
         duration = (t2.tv_sec -t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
         // printf( "Export done in %lf s in file %s\n", duration, output_filename ) ;
@@ -1052,27 +1077,32 @@ int main( int argc, char ** argv )
             free(flat_imgs[i]);
             free(flat_imgs_modified[i]);
         }
-    }
-    else{
+
+
+    } else{ // SLAVE PROCESSES
         int *raw_msg;
 
         while(1){
+
+            // Check what is sent
             MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
             MPI_Get_count(&status, MPI_INT, &n_int_rcvd);
-
             if(n_int_rcvd == 1) // Signal for stop
                 break;
 
+            // Receive
             raw_msg = (int *)malloc(n_int_rcvd*sizeof(int));
             MPI_Recv(raw_msg, n_int_rcvd, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
             
             // Cast infos
             cast_flat_img(raw_msg, &infos, &pixel_array);
 
+            // Appply filters
             apply_gray_filter_one_img(infos->width, infos->height, pixel_array);
             apply_blur_filter_one_img(infos->width, infos->height, pixel_array, SIZE_STENCIL, 20);
             apply_sobel_filter_one_img(infos->width, infos->height, pixel_array);
-
+            
+            // Send back
             MPI_Send(raw_msg, n_int_rcvd, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
             free(raw_msg);
         }

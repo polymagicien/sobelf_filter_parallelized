@@ -1,0 +1,61 @@
+
+img_info{
+    width, heigth, start_column_ghost, end_column_ghost, start_column_real, end_column_real 
+}
+
+
+image = load_images()
+n_process_per_img = get_process_per_img(image, n_total_process)
+total_infos = []
+total_subdivisions = []
+
+for img in image:
+    n_subdivisions = get_n_subdivisions(img, n_process_per_img[img])        // n_subdivisions <= n_process_per_img[img]
+    subdivisions = get_subdivisions()                                       // returns img_info[] and *pixel[]
+    total_infos += infos
+    total_subdivisions += subdivisions
+
+
+///
+
+// Sending ?
+
+img_sub = [][] tableau of tables in which [i] is a table of the lenghts of the subdivisions
+
+for img in images:
+
+    //create the column typ for tis image
+    mpi_type_vector(height, 3*nb_columns, width*3, mpi_int, rowtype, ierr)
+    call mpi_type_commit(rowtype, ierr)
+
+    //send to the process that will handle this image
+    create evironment with all the assigned process
+    MPI_Scatter(début_de_limage, nb_parts,rowtype, )
+
+
+    int MPI_Scatter (
+ void *sendbuf(in)
+,
+ int sendcount(in)
+,
+ MPI_Datatype sndtatyp(in)
+,
+ void *recvbuf(out)
+,
+ int recvcount(in)
+,
+ MPI_Datatype rcvtatyp(in)
+,
+ int root(in)
+,
+ MPI_Comm comm(in) );
+
+
+
+! send a row
+call mpi_send(a, 1, rowtype, dest, tag, comm, ierr)
+
+
+
+
+// Merging ?

@@ -259,7 +259,7 @@ void apply_gray_filter_one_img(int width, int height, pixel *p)
     (l)*(nb_c)+(c)
 
 
-void apply_blur_filter( int width, int height, pixel *p, int size, int threshold, int *pixel_iterated)
+int apply_blur_filter( int width, int height, pixel *p, int size, int threshold, int *pixel_iterated)
 {
     int j, k ;
     int end = 0 ;
@@ -395,6 +395,7 @@ void apply_blur_filter( int width, int height, pixel *p, int size, int threshold
 #endif
 
     free (new) ;
+    return n_iter;
 }
 
 void apply_sobel_filter_one_img(int width, int height, pixel *p)
@@ -601,7 +602,7 @@ void test_filters( int argc, char **argv )
         printf("Grey : %lf\n", grey_per_pixel);
 
         gettimeofday(&t1, NULL);
-        apply_blur_filter(width, height, pixel_array, 5, 10, &pixel_iterated);
+        int n_iter = apply_blur_filter(width, height, pixel_array, 5, 10, &pixel_iterated);
         gettimeofday(&t2, NULL);
         duration = (t2.tv_sec-t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
         blur_per_pixel = (pixel_iterated > 0) ? (duration*10000)/pixel_iterated : 0;
@@ -612,13 +613,13 @@ void test_filters( int argc, char **argv )
         gettimeofday(&t2, NULL);
         duration = (t2.tv_sec-t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
         sobel_per_pixel = (duration*10000)/(width*height);
-        printf("Grey : %lf\n", grey_per_pixel);
+        printf("Sobel : %lf\n", grey_per_pixel);
 
         if(output_filename != NULL && blur_per_pixel > 0){
             double total_blur = grey_per_pixel + blur_per_pixel + sobel_per_pixel;
             double total_other = grey_per_pixel + sobel_per_pixel;
             fp = fopen(output_filename, "a");
-            fprintf(fp, "%lf ---- %s \n", total_blur / total_other, input_filename);
+            fprintf(fp, "%lf ---- %d     %s \n", total_blur / total_other, n_iter, input_filename);
             fclose(fp);
         }
         // printf("%d\n", k+1);
