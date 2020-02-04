@@ -639,6 +639,7 @@ void print_array(pixel p[], int size, int width, char *title){
     printf("\n");
 }
 
+
 void test_mpi_vector(int argc, char **argv){
 
     // MPI
@@ -653,18 +654,17 @@ void test_mpi_vector(int argc, char **argv){
 
     // Loop
     int i;
-
     
     int size_rcvd;
-    int size = 99;
     int height = 11;
     int width = 9;
+    int size = width * height;
 
     if(rank == 0){
 
         // Initialisation
-        pixel pixel_array[size];
-        // srand48(11);
+        pixel *pixel_array = (pixel *)malloc(size * sizeof(pixel));
+        srand48(11);
         for(i = 0; i < size; i++){
             pixel_array[i].b = i;
             pixel_array[i].r = i;
@@ -711,6 +711,71 @@ void test_mpi_vector(int argc, char **argv){
     MPI_Finalize();
 }
 
+void test_send_huge_img(int argc, char **argv){
+
+    // MPI
+    int n_process, rank;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &n_process);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Status status;
+    // MPI_Request req;
+
+    printf("rank : %d\n", rank);
+
+    // Loop
+    int i;
+
+    // Time 
+    struct timeval t1, t2;
+    double duration;
+
+    
+    int size_rcvd;
+    int height = 1000;
+    int width = 1000;
+    int size = width * height;
+
+    if(rank == 0){
+
+        // Initialisation
+        pixel *pixel_array = (pixel *)malloc(size * sizeof(pixel));
+        // srand48(11);
+        for(i = 0; i < size; i++){
+            pixel_array[i].b = i;
+            pixel_array[i].r = i;
+            pixel_array[i].g = i;
+        }
+
+        
+        gettimeofday(&t1, NULL);
+
+        MPI_Send(pixel_array, size * 3, MPI_INT, 1, 0, MPI_COMM_WORLD);
+
+        gettimeofday(&t2, NULL);
+        duration = (t2.tv_sec-t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
+        printf("Send and receive done in %lf s\n", duration);
+
+        
+        MPI_Recv(pixel_array, size * 3, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+
+    } else {
+        // Get size
+        MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        MPI_Get_count(&status, MPI_INT, &size_rcvd);
+        // printf("Count : %d\n", size_rcvd); // --> Prints the right number of ints
+
+        
+        pixel *array = (pixel *)malloc(size_rcvd / 3 * sizeof(pixel));
+        MPI_Recv(array, size_rcvd, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+
+        MPI_Send(array, size_rcvd, MPI_INT, 0, 0, MPI_COMM_WORLD);
+    }
+
+
+    MPI_Finalize();
+}
+
 
 // Main entry point
 int main( int argc, char ** argv )
@@ -727,6 +792,10 @@ int main( int argc, char ** argv )
             break;
         case 3:
             test_mpi_vector(argc, argv + 1);
+            break;
+            break;
+        case 4:
+            test_send_huge_img(argc, argv + 1);
             break;
         default:
             printf("Wrong argument\n");
