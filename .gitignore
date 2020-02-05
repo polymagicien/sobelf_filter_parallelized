@@ -2,7 +2,6 @@ test_results/
 obj/
 performance/
 images/processed/
-.vscode/
 
 sobelf
 test

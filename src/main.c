@@ -992,13 +992,11 @@ int main( int argc, char ** argv )
 
     if(rank == 0){ // MASTER PROCESS
 
-        // ---------------------------------------------------------------------------------------------
         /****** LOAD FILE INTO image PHASE ******/
         if(load_image_from_file(&image, &n_images, input_filename) == 1)
             return 1;
 
 
-        // ---------------------------------------------------------------------------------------------
         /****** OPTIMISATION BEGINS ******/
         gettimeofday(&t1, NULL);
         
