@@ -946,8 +946,6 @@ int main( int argc, char ** argv )
     MPI_Status status;
     int n_int_rcvd;
     int n_images;
-    pixel *pixel_array;
-    img_info infos;
 
     // Check command-line arguments
     if ( argc < 3 )
@@ -992,33 +990,36 @@ int main( int argc, char ** argv )
         get_parts( infos_parts, pixels_parts, datatypes, image, n_total_parts );
 
         int size_img_info = sizeof( img_info ) / sizeof( int );
+        MPI_Datatype temp_type;
+        int n_columns_sent;
         // SENDING PHASE: original images
         for( i = 0; i < n_total_parts; i++ ){
-            MPI_Isend( infos_parts + i, size_img_info, MPI_INT, i % n_process, 0, MPI_COMM_WORLD, &req);
-            MPI_Isend( pixels_parts[i], size_img_info, MPI_INT, i % n_process, 0, MPI_COMM_WORLD, &req);
+            // temp_type = datatypes[ infos_parts[i].order ];
+            n_columns_sent = infos_parts[i].n_columns;
+            MPI_Isend( infos_parts + i, size_img_info, MPI_INT, i % (n_process - 1) + 1, 0, MPI_COMM_WORLD, &req);
+            MPI_Isend( pixels_parts[i], n_columns_sent, datatypes[ infos_parts[i].order ], i % (n_process - 1) + 1, MPI_COMM_WORLD, &req);
         }
 
         // RECEIVING PHASE: modified images
-        MPI_Request req_array[n_images];
-        MPI_Status status_array[n_images];
-        for(i=0; i < n_images; i++){
-            MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-            MPI_Get_count(&status, MPI_INT, &n_int_rcvd);
-            flat_imgs_modified[i] = (int *)malloc(n_int_rcvd*sizeof(int));
-            MPI_Irecv(flat_imgs_modified[i], n_int_rcvd, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &(req_array[i]));
+        MPI_Request req_array[n_total_parts];
+        MPI_Status status_array[n_total_parts];
+        img_info info_recv;
+        pixel *first_column;
+        int n_columns;
+        for( i=0; i < n_total_parts; i++ ){
+            MPI_Recv( &info_recv, size_img_info, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            first_column = pixels_parts[i] + info_recv.ghost_cells_left;
+            temp_type = datatypes[ info_recv.image ];
+            MPI_Irecv( first_column, info_recv.n_columns, temp_type, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &(req_array[i]));
         }
-        MPI_Waitall(n_images, req_array, status_array);
+
+        MPI_Waitall(n_total_parts, req_array, status_array);
 
         // Send "end" signal to processes
         int buf = 0;
         for(i=1; i < n_process; i++)
             MPI_Isend(&buf, 1, MPI_INT, i, 0, MPI_COMM_WORLD, &req);
 
-        // Modify initial variable "image"
-        for(i=0; i < n_images; i++){
-            cast_flat_img(flat_imgs_modified[i], &infos, &pixel_array);
-            image->p[infos->order] = pixel_array;
-        }
         /****** OPTIMISATION ENDS ******/
 
         /****** CREATE GIF AND EXPORTATION ******/
