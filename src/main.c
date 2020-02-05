@@ -823,6 +823,8 @@ typedef struct img_info
     int ghost_cells_right;
     int ghost_cells_left;
     int n_columns;
+    int rank_left;
+    int rank_right;
 } img_info;
 
 
@@ -896,6 +898,8 @@ void get_parts(img_info info_array[], pixel *pixel_array[], MPI_Datatype datatyp
             info_array[i*n_parts_by_image+j].order = i*n_parts_by_image+j;
             info_array[i*n_parts_by_image+j].order_sub_img = j;
             info_array[i*n_parts_by_image+j].image = i;
+            info_array[i*n_parts_by_image+j].rank_right = i;
+            info_array[i*n_parts_by_image+j].rank_left = i;
 
             // MAKING THE SUBDIVISION
             int p2 = p1 + sub_width;
