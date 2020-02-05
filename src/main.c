@@ -949,6 +949,9 @@ int main( int argc, char ** argv )
     int n_int_rcvd;
     int n_images;
 
+    // Constants
+    int n_int_img_info = sizeof( img_info ) / sizeof( int );
+
     // Check command-line arguments
     if ( argc < 3 )
     {
@@ -1054,31 +1057,40 @@ int main( int argc, char ** argv )
 
     } else{ // SLAVE PROCESSES
         img_info info_recv;
-        img_info info_recv;
+        pixel *pixel_recv;
+        int n_int_recv;
 
+        int height_recv, width_recv;
+        MPI_Comm local_comm;
         while(1){
 
             // Check what is sent
             MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-            MPI_Get_count(&status, MPI_INT, &n_int_rcvd);
-            if(n_int_rcvd == 1) // Signal for stop
+            MPI_Get_count(&status, MPI_INT, &n_int_recv);
+            if(n_int_recv == 1) // Signal for stop
                 break;
 
             // Receive
-            raw_msg = (int *)malloc(n_int_rcvd*sizeof(int));
-            MPI_Recv(raw_msg, n_int_rcvd, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
-            
-            // Cast infos
-            cast_flat_img(raw_msg, &infos, &pixel_array);
+            MPI_Recv(&info_recv, n_int_img_info, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
+            local_comm = info_recv.local_comm;
+            width_recv = info_recv.width;
+            height_recv = info_recv.height;
+            n_int_recv = width_recv * height_recv * sizeof(pixel) / sizeof(int);
 
-            // Appply filters
-            apply_gray_filter_one_img(infos->width, infos->height, pixel_array);
+            pixel_recv = (pixel *)malloc( n_int_recv * sizeof(int) );
+            MPI_Recv(pixel_recv, n_int_recv, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, &status);
+
+            apply_gray_filter_one_img(width_recv, height_recv, pixel_array);
+
+
             apply_blur_filter_one_img(infos->width, infos->height, pixel_array, SIZE_STENCIL, 20);
-            apply_sobel_filter_one_img(infos->width, infos->height, pixel_array);
             
+            
+            
+            apply_sobel_filter_one_img(infos->width, infos->height, pixel_array);
             // Send back
             MPI_Send(raw_msg, n_int_rcvd, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
-            free(raw_msg);
+            free(pixel_recv);
         }
     }
     MPI_Finalize();
