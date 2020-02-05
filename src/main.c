@@ -917,8 +917,6 @@ void get_parts(img_info info_array[], pixel *pixel_array[], MPI_Datatype datatyp
             p1 = p2; // update
         }
     }
-
-   
 }
 
 /* ************************************* MAIN FUNCTION ************************************* */
@@ -994,11 +992,15 @@ int main( int argc, char ** argv )
         int n_columns_sent;
         // SENDING PHASE: original images
         for( i = 0; i < n_total_parts; i++ ){
-            // temp_type = datatypes[ infos_parts[i].order ];
             n_columns_sent = infos_parts[i].n_columns;
             MPI_Isend( infos_parts + i, size_img_info, MPI_INT, i % (n_process - 1) + 1, 0, MPI_COMM_WORLD, &req);
-            MPI_Isend( pixels_parts[i], n_columns_sent, datatypes[ infos_parts[i].order ], i % (n_process - 1) + 1, MPI_COMM_WORLD, &req);
+            MPI_Isend( pixels_parts[i], n_columns_sent, datatypes[ infos_parts[i].image ], i % (n_process - 1) + 1, MPI_COMM_WORLD, &req);
         }
+
+        // PROCESSING THE FEW ASSIGNED PARTS
+        /*
+
+        */
 
         // RECEIVING PHASE: modified images
         MPI_Request req_array[n_total_parts];
