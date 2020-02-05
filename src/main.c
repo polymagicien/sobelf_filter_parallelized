@@ -815,17 +815,73 @@ void apply_sobel_filter_one_img(int width, int height, pixel *p)
 
 typedef struct img_info
 {
-    int width;
-    int height; 
-    int order;
-    int order_sub_img;
-    int image;
-    int ghost_cells_right;
-    int ghost_cells_left;
+    int width, height; 
+    int order, order_sub_img; // global # of part, # of part in image
+    int image; // # of image 
+    int ghost_cells_right, ghost_cells_left;
     int n_columns;
-    int rank_left;
-    int rank_right;
+    int rank_left, rank_right;
+    MPI_DATA
 } img_info;
+
+
+void get_parts(img_info info_array[], pixel *pixel_array[], MPI_Datatype datatypes[], MPI_Comm communicators, animated_gif image, i, int n_parts, int n_im_per_round){
+
+    int n_images = image.n_images;
+    int i,j;
+    int n_parts_by_image = n_parts/image.n_images;
+    
+    // FILL COMMUNICATORS
+    MPI_Group world_group;
+    MPI_Comm_group(MPI_COMM_WORLD, &world_group);
+    for( i = 0; i < n_im_per_round; i++){
+        
+    }
+
+
+    // FILL INFO_ARRAY, PIXEL-ARRAY AND DATATYPES
+    MPI_Datatype COLUMN;
+    for (i = 0; i < n_images; i++){
+
+        // Declare type
+        MPI_Type_vector(image.height[i], 3*1, image.width[i]*3, MPI_INT, &COLUMN); // One column (width of 1 pixel)
+        MPI_Type_create_resized(COLUMN, 0, 3*sizeof(int), &COLUMN);
+        MPI_Type_commit(&COLUMN);
+        datatypes[i] = COLUMN;
+
+        // Set the image info
+        int p1 = 0;
+        int sub_width = width / n_parts_by_image;
+        for(j = 0; j < n_parts_by_image; j++){
+            info_array[i*n_parts_by_image+j].width = image.width[i];
+            info_array[i*n_parts_by_image+j].height = image.height[i];
+            info_array[i*n_parts_by_image+j].order = i*n_parts_by_image+j;
+            info_array[i*n_parts_by_image+j].order_sub_img = j;
+            info_array[i*n_parts_by_image+j].image = i;
+            info_array[i*n_parts_by_image+j].rank_right = i;
+            info_array[i*n_parts_by_image+j].rank_left = i;
+
+            // MAKING THE SUBDIVISION
+            int p2 = p1 + sub_width;
+            int ghost_right = 5;
+            int ghost_left = 5;
+
+            if (j == n_parts_by_image - 1){
+                p2 = image.width[i];
+                ghost_right = 0;
+            } else if (j == 0){
+                ghost_left = 0;
+            }
+            
+            info_array[i*n_parts_by_image+j].n_columns = p2 - p1;
+            info_array[i*n_parts_by_image+j].ghost_cells_left = ghost_left;
+            info_array[i*n_parts_by_image+j].ghost_cells_right = ghost_right;
+            pixel_array[i*n_parts_by_image+j] = image.p[i] + p1;
+
+            p1 = p2; // update
+        }
+    }
+}
 
 
 /* *********************************** UTILITY FUNCTIONS *********************************** */
@@ -870,57 +926,6 @@ int is_grey(pixel *p, int size){
 
 int get_n_parts(animated_gif image, int n_process){
     return 1;
-}
-
-void get_parts(img_info info_array[], pixel *pixel_array[], MPI_Datatype datatypes[], animated_gif image, i, int n_parts){
-
-    int n_images = image.n_images;
-    int i,j;
-    int n_parts_by_image = n_parts/image.n_images;
-
-    
-    MPI_Datatype COLUMN;
-
-    for (i = 0; i < n_images; i++){
-
-        // Declare type
-        MPI_Type_vector(image.height[i], 3*1, image.width[i]*3, MPI_INT, &COLUMN); // One column (width of 1 pixel)
-        MPI_Type_create_resized(COLUMN, 0, 3*sizeof(int), &COLUMN);
-        MPI_Type_commit(&COLUMN);
-        datatypes[i] = COLUMN;
-
-        // Set the image info
-        int p1 = 0;
-        int sub_width = width / n_parts_by_image;
-        for(j = 0; j < n_parts_by_image; j++){
-            info_array[i*n_parts_by_image+j].width = image.width[i];
-            info_array[i*n_parts_by_image+j].height = image.height[i];
-            info_array[i*n_parts_by_image+j].order = i*n_parts_by_image+j;
-            info_array[i*n_parts_by_image+j].order_sub_img = j;
-            info_array[i*n_parts_by_image+j].image = i;
-            info_array[i*n_parts_by_image+j].rank_right = i;
-            info_array[i*n_parts_by_image+j].rank_left = i;
-
-            // MAKING THE SUBDIVISION
-            int p2 = p1 + sub_width;
-            int ghost_right = 5;
-            int ghost_left = 5;
-
-            if (j == n_parts_by_image - 1){
-                p2 = image.width[i];
-                ghost_right = 0;
-            } else if (j == 0){
-                ghost_left = 0;
-            }
-            
-            info_array[i*n_parts_by_image+j].n_columns = p2 - p1;
-            info_array[i*n_parts_by_image+j].ghost_cells_left = ghost_left;
-            info_array[i*n_parts_by_image+j].ghost_cells_right = ghost_right;
-            pixel_array[i*n_parts_by_image+j] = image.p[i] + p1;
-
-            p1 = p2; // update
-        }
-    }
 }
 
 /* ************************************* MAIN FUNCTION ************************************* */
