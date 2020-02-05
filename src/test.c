@@ -677,6 +677,8 @@ void test_mpi_vector(int argc, char **argv){
         MPI_Type_create_resized(COLUMN, 0, 3*sizeof(int), &COLUMN);
         MPI_Type_commit(&COLUMN);
 
+        printf("SIZE OF COLLUMN : %zu\n", sizeof(COLUMN));
+
 
         print_array(pixel_array, size, width, "BEFORE");
 

@@ -819,43 +819,7 @@ typedef struct img_info
     int height; 
     int order;
     int order_sub_img;
-    int blur_up_from;
-    int blur_up_to;
-    int blur_down_from;
-    int blur_down_to;
 } img_info;
-
-
-void cast_flat_img(int* flat, img_info **infos, pixel **pixel_array){
-    *infos = (img_info *)flat;
-    *pixel_array = (pixel*)(flat + sizeof(img_info)/sizeof(int));
-}
-
-
-void get_process_per_img(int *process_per_img, int* n_sub_imgs, int n_process, int n_images){
-    int i;
-    for(i=0; i<n_images; i++)   // Initialisation
-        process_per_img[i] = 0;
-
-    if(n_process <= n_images){
-        *n_sub_imgs = n_images;
-        for(i=0; i<n_images; i++)
-            process_per_img[i] = 1;
-    } else {
-        *n_sub_imgs = n_process;
-        for(i=0; i<n_process; i++)
-            process_per_img[i%n_images] += 1;
-    }
-}
-
-void get_img_divisions(int *divisions, int n_parts, int height){
-    // ASSUME : height >> n_process_for_the_img --> DO NOT CHECK IF step_in_height > min
-    int i;
-    int step = height / n_parts;
-    for(i=0; i<n_parts; i++)
-        divisions[i] = (i+1)*step;
-    divisions[n_parts - 1] = height;
-}
 
 
 /* *********************************** UTILITY FUNCTIONS *********************************** */
@@ -898,48 +862,15 @@ int is_grey(pixel *p, int size){
 
 /* ********************************* MPI DECISION FUNCTIONS ******************************** */
 
-int get_n_subdivisions(int height, int width, int n_process){
+int get_n_parts(animated_gif image, int n_process){
     return 1;
 }
 
-void get_subdivisions(img_infos *info_array, pixel **pixel_array, animated_gif image, i, int n_divisions){
-    if(n_divisions == 1){
-        n_bytes_msg = image->width[i] * image->height[i] * sizeof(pixel);
-        infos->width = image->width[i];
-        infos->height = image->height[i];
-        infos->order = i;
-        ++index;
-    } else {
-        int step_in_height = image->height[i] / n_divisions;
-        int lines_consumed = 0;
-        int beg_line, end_line, sub_height;
-
-        int divisions[n_divisions];
-        get_img_divisions(divisions, n_divisions, image->height);
-
-        for(j=0; j<n_divisions; j++){
-            beg_line = (j == 0)? 0 : divisions[j-1];
-            end_line = divisions[j] - 1;
-            sub_height = end_line - beg_line + 1;
-
-            // Allocate memory
-            n_bytes_msg = sizeof(img_info) + (image->width[i] * sub_height * sizeof(pixel));
-            flat_imgs[index] = (int *)malloc(n_bytes_msg);
-            cast_flat_img(flat_imgs[index], &infos, &pixel_array);
-
-            // Fill datas
-            infos->width = image->width[i];
-            infos->height = sub_height;
-            infos->order = i;
-            infos->order_sub_img = j;
-            infos->blur_down_from = ;
-            infos->blur_down_to = ;
-            infos->blur_up_from = ;
-            infos->blur_up_to = ;
-            memcpy(pixel_array, image->p[i], n_bytes_msg - sizeof(img_info));
-            ++index;
-        }
-    }
+void get_parts(img_infos info_array[], pixel *pixel_array[], MPI_Datatype datatypes[] animated_gif image, i, int n_parts){
+    MPI_Datatype COLUMN;
+    MPI_Type_vector(height, 3*1, width*3, MPI_INT, &COLUMN); // One column (width of 1 pixel)
+    MPI_Type_create_resized(COLUMN, 0, 3*sizeof(int), &COLUMN);
+    MPI_Type_commit(&COLUMN);
 }
 
 /* ************************************* MAIN FUNCTION ************************************* */
@@ -991,6 +922,10 @@ int main( int argc, char ** argv )
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     if(rank == 0){ // MASTER PROCESS
+        int n_total_parts;
+        img_info *infos_parts;
+        pixel **pixels_parts;
+        MPI_Datatype *datatypes;
 
         /****** LOAD FILE INTO image PHASE ******/
         if(load_image_from_file(&image, &n_images, input_filename) == 1)
@@ -998,34 +933,21 @@ int main( int argc, char ** argv )
 
 
         /****** OPTIMISATION BEGINS ******/
-        gettimeofday(&t1, NULL);
+        gettimeofday(&t1, NULL );
         
         // Decide # processes / img 
-        int process_per_img[n_images];
-        int n_sub_img;
-        get_process_per_img(process_per_img, &n_sub_img, n_process, n_images);
-        
-        // Divide imgs
-        int *flat_imgs;
-        int n_bytes_msg;
-        int index = 0;
-        int n_subdivisions;
-        for(i=0; i<n_images; i++){
-            n_subdivisions = get_n_subdivisions(image->height[i], image->width[i], process_per_img[i]);
-            pixel *address_to_send[n_subdivisions];
-            infos infos_per_sub_img[n_subdivisions];
-            get_subdivisions(&infos, &to_send, n_subdivisions, image, i);
-        }
+        n_total_parts = get_n_parts( image, n_process );
+        infos_parts = ( img_info * )malloc( n_total_parts * sizeof( img_info ) );
+        pixels_parts = ( pixels_parts ** )malloc( n_total_parts * sizeof( pixel * ) );
+        datatypes = ( MPI_Datatype * )malloc( n_images * sizeof( MPI_Datatype ) );
 
-        // Flatten images
-        int *flat_imgs_modified[n_images];
-        for(i = 0; i < n_images; i++){
-        }
+        get_parts( infos_parts, pixels_parts, datatypes, image, n_total_parts );
 
+        int size_img_info = sizeof( img_info ) / sizeof( int );
         // SENDING PHASE: original images
-        for(i=0; i < n_images; i++){
-            MPI_Isend(flat_imgs[i], sizeof(flat_imgs[i])/sizeof(int), MPI_INT, (i%(n_process - 1)) + 1, 0, MPI_COMM_WORLD, &req);
-
+        for( i = 0; i < n_total_parts; i++ ){
+            MPI_Isend( infos_parts + i, size_img_info, MPI_INT, i % n_process, 0, MPI_COMM_WORLD, &req);
+            MPI_Isend( pixels_parts[i], size_img_info, MPI_INT, i % n_process, 0, MPI_COMM_WORLD, &req);
         }
 
         // RECEIVING PHASE: modified images
@@ -1051,8 +973,6 @@ int main( int argc, char ** argv )
         }
         /****** OPTIMISATION ENDS ******/
 
-
-        // ---------------------------------------------------------------------------------------------
         /****** CREATE GIF AND EXPORTATION ******/
         gettimeofday(&t2, NULL);
         duration = (t2.tv_sec-t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
@@ -1071,9 +991,9 @@ int main( int argc, char ** argv )
         // printf( "Export done in %lf s in file %s\n", duration, output_filename ) ;
 
         // free allocated
-        for(i=0; i<n_images; i++){
-            free(flat_imgs[i]);
-            free(flat_imgs_modified[i]);
+        free(infos_parts);
+        for( i = 0; i < n_n_total_parts; i++ ){
+            free(pixels_parts[i]);
         }
 
 
