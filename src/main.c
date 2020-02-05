@@ -1053,7 +1053,8 @@ int main( int argc, char ** argv )
 
 
     } else{ // SLAVE PROCESSES
-        int *raw_msg;
+        img_info info_recv;
+        img_info info_recv;
 
         while(1){
 

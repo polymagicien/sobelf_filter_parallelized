@@ -22,3 +22,45 @@ if n_process > n_images && image_size.differ_a_lot():
 CALCUL DE GAIN SI COUPE
     - pp = ppcm(n_images, n_process) --> n_images / pp divisions
     ( min de divisions pour que chaque worker ait un travail équitable )
+
+
+Sharing of ghost cells between workers ------ 
+
+
+******************************GENERAL ALGO***************************************
+
+Entries : animated image, n_process;
+
+--> infos[], *pixels[]
+
+
+for i in range(n_round):
+    for j in n_img_per_round:
+        scatter()
+    
+    work()
+
+    for j in n_img_per_round()
+        for k in part:
+            recv()
+            
+
+
+Worker :
+    While 1:
+        - Check if incoming msg
+        - If **STOP** 1: break
+        - If new_part : alloc and receive
+
+        apply_grey()
+
+        while(iter)
+            - apply_blur()
+            - MPI_Allreduce() to see if another iteration --> if no : apply_sobel + send_to_root
+            - if yes : 
+                - send ghost_cells for left and right neighbors 
+                - If need_ghost_cells_right && ghost_cells_right : update
+                - If need_ghost_cells_left && ghost_cells_left : update
+
+        apply_sobel()
+        send_to_root()
