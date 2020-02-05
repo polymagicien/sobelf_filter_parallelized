@@ -618,197 +618,134 @@ void apply_gray_filter_one_img(int width, int height, pixel *p)
 #define CONV(l,c,nb_c) \
     (l)*(nb_c)+(c)
 
-void apply_blur_filter_one_img( int width, int height, pixel *p, int size, int threshold )
+// When columns are concatenated
+#define CONV_COL(l,c,nb_l) \
+    (c)*(nb_l)+(l) 
+
+void apply_blur_filter_one_iter_col( int width, int height, pixel *p, int threshold )
 {
     int j, k ;
     int end = 0 ;
-    int n_iter = 0 ;
 
     pixel * new ;
     n_iter = 0 ;
+    width = image->width[i] ;
+    height = image->height[i] ;
+
     /* Allocate array of new pixels */
     new = (pixel *)malloc(width * height * sizeof( pixel ) ) ;
 
-    /* Perform at least one blur iteration */
-    do
+    end = 1 ;
+    n_iter++ ;
+
+    // Copy pixels of images in ew 
+    for(j=0; j<height-1; j++)
     {
-        end = 1 ;
-        n_iter++ ;
-
-        // Copy pixels of images in new 
-        for(j=0; j<height-1; j++)
+        for(k=0; k<width-1; k++)
         {
-            for(k=0; k<width-1; k++)
-            {
-                new[CONV(j,k,width)].r = p[CONV(j,k,width)].r ;
-                new[CONV(j,k,width)].g = p[CONV(j,k,width)].g ;
-                new[CONV(j,k,width)].b = p[CONV(j,k,width)].b ;
-            }
+            new[CONV_COL(j,k,height)].r = p[i][CONV_COL(j,k,height)].r ;
+            new[CONV_COL(j,k,height)].g = p[i][CONV_COL(j,k,height)].g ;
+            new[CONV_COL(j,k,height)].b = p[i][CONV_COL(j,k,height)].b ;
         }
+    }
 
-        /* Apply blur on top part of image (10%) */
-        for(j=size; j<height/10-size; j++)
+    /* Apply blur on top part of image (10%) */
+    for(j=size; j<height/10-size; j++)
+    {
+        for(k=size; k<width-size; k++)
         {
-            for(k=size; k<width-size; k++)
-            {
-                int stencil_j, stencil_k ;
-                int t_r = 0 ;
-                int t_g = 0 ;
-                int t_b = 0 ;
+            int stencil_j, stencil_k ;
+            int t_r = 0 ;
+            int t_g = 0 ;
+            int t_b = 0 ;
 
-                for ( stencil_j = -size ; stencil_j <= size ; stencil_j++ )
+            for ( stencil_j = -size ; stencil_j <= size ; stencil_j++ )
+            {
+                for ( stencil_k = -size ; stencil_k <= size ; stencil_k++ )
                 {
-                    for ( stencil_k = -size ; stencil_k <= size ; stencil_k++ )
-                    {
-                        t_r += p[CONV(j+stencil_j,k+stencil_k,width)].r ;
-                        t_g += p[CONV(j+stencil_j,k+stencil_k,width)].g ;
-                        t_b += p[CONV(j+stencil_j,k+stencil_k,width)].b ;
-                    }
+                    t_r += p[i][CONV_COL(j+stencil_j,k+stencil_k,height)].r ;
+                    t_g += p[i][CONV_COL(j+stencil_j,k+stencil_k,height)].g ;
+                    t_b += p[i][CONV_COL(j+stencil_j,k+stencil_k,height)].b ;
                 }
-
-                new[CONV(j,k,width)].r = t_r / ( (2*size+1)*(2*size+1) ) ;
-                new[CONV(j,k,width)].g = t_g / ( (2*size+1)*(2*size+1) ) ;
-                new[CONV(j,k,width)].b = t_b / ( (2*size+1)*(2*size+1) ) ;
             }
+
+            new[CONV_COL(j,k,height)].r = t_r / ( (2*size+1)*(2*size+1) ) ;
+            new[CONV_COL(j,k,height)].g = t_g / ( (2*size+1)*(2*size+1) ) ;
+            new[CONV_COL(j,k,height)].b = t_b / ( (2*size+1)*(2*size+1) ) ;
         }
+    }
 
-        /* Copy the middle part of the image */
-        for(j=height/10-size; j<height*0.9+size; j++)
+    /* Copy the middle part of the image */
+    for(j=height/10-size; j<height*0.9+size; j++)
+    {
+        for(k=size; k<width-size; k++)
         {
-            for(k=size; k<width-size; k++)
-            {
-                new[CONV(j,k,width)].r = p[CONV(j,k,width)].r ; 
-                new[CONV(j,k,width)].g = p[CONV(j,k,width)].g ; 
-                new[CONV(j,k,width)].b = p[CONV(j,k,width)].b ; 
-            }
+            new[CONV_COL(j,k,height)].r = p[i][CONV_COL(j,k,height)].r ; 
+            new[CONV_COL(j,k,height)].g = p[i][CONV_COL(j,k,height)].g ; 
+            new[CONV_COL(j,k,height)].b = p[i][CONV_COL(j,k,height)].b ; 
         }
+    }
 
-        /* Apply blur on the bottom part of the image (10%) */
-        for(j=height*0.9+size; j<height-size; j++)
+    /* Apply blur on the bottom part of the image (10%) */
+    for(j=height*0.9+size; j<height-size; j++)
+    {
+        for(k=size; k<width-size; k++)
         {
-            for(k=size; k<width-size; k++)
-            {
-                int stencil_j, stencil_k ;
-                int t_r = 0 ;
-                int t_g = 0 ;
-                int t_b = 0 ;
+            int stencil_j, stencil_k ;
+            int t_r = 0 ;
+            int t_g = 0 ;
+            int t_b = 0 ;
 
-                for ( stencil_j = -size ; stencil_j <= size ; stencil_j++ )
+            for ( stencil_j = -size ; stencil_j <= size ; stencil_j++ )
+            {
+                for ( stencil_k = -size ; stencil_k <= size ; stencil_k++ )
                 {
-                    for ( stencil_k = -size ; stencil_k <= size ; stencil_k++ )
-                    {
-                        t_r += p[CONV(j+stencil_j,k+stencil_k,width)].r ;
-                        t_g += p[CONV(j+stencil_j,k+stencil_k,width)].g ;
-                        t_b += p[CONV(j+stencil_j,k+stencil_k,width)].b ;
-                    }
+                    t_r += p[i][CONV_COL(j+stencil_j,k+stencil_k,height)].r ;
+                    t_g += p[i][CONV_COL(j+stencil_j,k+stencil_k,height)].g ;
+                    t_b += p[i][CONV_COL(j+stencil_j,k+stencil_k,height)].b ;
                 }
-
-                new[CONV(j,k,width)].r = t_r / ( (2*size+1)*(2*size+1) ) ;
-                new[CONV(j,k,width)].g = t_g / ( (2*size+1)*(2*size+1) ) ;
-                new[CONV(j,k,width)].b = t_b / ( (2*size+1)*(2*size+1) ) ;
             }
+
+            new[CONV_COL(j,k,height)].r = t_r / ( (2*size+1)*(2*size+1) ) ;
+            new[CONV_COL(j,k,height)].g = t_g / ( (2*size+1)*(2*size+1) ) ;
+            new[CONV_COL(j,k,height)].b = t_b / ( (2*size+1)*(2*size+1) ) ;
         }
+    }
 
-        for(j=1; j<height-1; j++)
+    for(j=1; j<height-1; j++)
+    {
+        for(k=1; k<width-1; k++)
         {
-            for(k=1; k<width-1; k++)
-            {
 
-                float diff_r ;
-                float diff_g ;
-                float diff_b ;
+            float diff_r ;
+            float diff_g ;
+            float diff_b ;
 
-                diff_r = (new[CONV(j  ,k  ,width)].r - p[CONV(j  ,k  ,width)].r) ;
-                diff_g = (new[CONV(j  ,k  ,width)].g - p[CONV(j  ,k  ,width)].g) ;
-                diff_b = (new[CONV(j  ,k  ,width)].b - p[CONV(j  ,k  ,width)].b) ;
+            diff_r = (new[CONV_COL(j  ,k  ,height)].r - p[i][CONV_COL(j  ,k  ,height)].r) ;
+            diff_g = (new[CONV_COL(j  ,k  ,height)].g - p[i][CONV_COL(j  ,k  ,height)].g) ;
+            diff_b = (new[CONV_COL(j  ,k  ,height)].b - p[i][CONV_COL(j  ,k  ,height)].b) ;
 
-                if ( diff_r > threshold || -diff_r > threshold 
+            if ( diff_r > threshold || -diff_r > threshold 
+                    ||
+                        diff_g > threshold || -diff_g > threshold
                         ||
-                            diff_g > threshold || -diff_g > threshold
-                            ||
-                            diff_b > threshold || -diff_b > threshold
-                    ) {
-                    end = 0 ;
-                }
-
-                p[CONV(j  ,k  ,width)].r = new[CONV(j  ,k  ,width)].r ;
-                p[CONV(j  ,k  ,width)].g = new[CONV(j  ,k  ,width)].g ;
-                p[CONV(j  ,k  ,width)].b = new[CONV(j  ,k  ,width)].b ;
+                        diff_b > threshold || -diff_b > threshold
+                ) {
+                end = 0 ;
             }
+
+            p[i][CONV_COL(j  ,k  ,height)].r = new[CONV_COL(j  ,k  ,height)].r ;
+            p[i][CONV_COL(j  ,k  ,height)].g = new[CONV_COL(j  ,k  ,height)].g ;
+            p[i][CONV_COL(j  ,k  ,height)].b = new[CONV_COL(j  ,k  ,height)].b ;
         }
-
-    } while ( threshold > 0 && !end ) ;
-
-#if SOBELF_DEBUG
-	printf( "BLUR: number of iterations for image %d\n", n_iter ) ;
-#endif
-
+    }
     free (new) ;
+    if ( threshold > 0 && !end )
+        return 0;
+    else
+        return 1;
 }
 
-void apply_sobel_filter_one_img(int width, int height, pixel *p)
-{
-    int j, k ;
-
-    pixel * sobel ;
-    sobel = (pixel *)malloc(width * height * sizeof( pixel ) ) ;
-
-    for(j=1; j<height-1; j++)
-    {
-        for(k=1; k<width-1; k++)
-        {
-            int pixel_blue_no, pixel_blue_n, pixel_blue_ne;
-            int pixel_blue_so, pixel_blue_s, pixel_blue_se;
-            int pixel_blue_o /*, pixel_blue*/  , pixel_blue_e ;
-
-            float deltaX_blue ;
-            float deltaY_blue ;
-            float val_blue;
-
-            pixel_blue_no = p[CONV(j-1,k-1,width)].b ;
-            pixel_blue_n  = p[CONV(j-1,k  ,width)].b ;
-            pixel_blue_ne = p[CONV(j-1,k+1,width)].b ;
-            pixel_blue_so = p[CONV(j+1,k-1,width)].b ;
-            pixel_blue_s  = p[CONV(j+1,k  ,width)].b ;
-            pixel_blue_se = p[CONV(j+1,k+1,width)].b ;
-            pixel_blue_o  = p[CONV(j  ,k-1,width)].b ;
-            // pixel_blue    = p[CONV(j  ,k  ,width)].b ;
-            pixel_blue_e  = p[CONV(j  ,k+1,width)].b ;
-
-            deltaX_blue = -pixel_blue_no + pixel_blue_ne - 2*pixel_blue_o + 2*pixel_blue_e - pixel_blue_so + pixel_blue_se;             
-
-            deltaY_blue = pixel_blue_se + 2*pixel_blue_s + pixel_blue_so - pixel_blue_ne - 2*pixel_blue_n - pixel_blue_no;
-
-            val_blue = sqrt(deltaX_blue * deltaX_blue + deltaY_blue * deltaY_blue)/4;
-
-
-            if ( val_blue > 50 ) 
-            {
-                sobel[CONV(j  ,k  ,width)].r = 255 ;
-                sobel[CONV(j  ,k  ,width)].g = 255 ;
-                sobel[CONV(j  ,k  ,width)].b = 255 ;
-            } else
-            {
-                sobel[CONV(j  ,k  ,width)].r = 0 ;
-                sobel[CONV(j  ,k  ,width)].g = 0 ;
-                sobel[CONV(j  ,k  ,width)].b = 0 ;
-            }
-        }
-    }
-
-    for(j=1; j<height-1; j++)
-    {
-        for(k=1; k<width-1; k++)
-        {
-            p[CONV(j  ,k  ,width)].r = sobel[CONV(j  ,k  ,width)].r ;
-            p[CONV(j  ,k  ,width)].g = sobel[CONV(j  ,k  ,width)].g ;
-            p[CONV(j  ,k  ,width)].b = sobel[CONV(j  ,k  ,width)].b ;
-        }
-    }
-
-    free (sobel) ;
-
-}
 
 
 /* ****************************** MPI COMMUNICATION FUNCTIONS  ***************************** */
@@ -974,7 +911,6 @@ int is_grey(pixel *p, int size){
     }
     return 1;
 }
-
 
 /* ********************************* MPI DECISION FUNCTIONS ******************************** */
 
@@ -1166,9 +1102,16 @@ int main( int argc, char ** argv )
         img_info info_recv;
         pixel *pixel_recv;
         int n_int_recv;
+        int end_local;
+        int end_global;
 
-        int height_recv, width_recv;
+        int height_recv, width_recv, rank_left, rank_right;
+        int ghost_left, ghost_right;
+        int n_int_column;
+        int n_int_ghost_cells;
         MPI_Comm local_comm;
+        MPI_Status status_left, status_right;
+        // MPI_Request req_left, req_right;
         while(1){
 
             // Check what is sent
@@ -1177,26 +1120,53 @@ int main( int argc, char ** argv )
             if(n_int_recv == 1) // Signal for stop
                 break;
 
-            // Receive
+            // Receive and reduce header
             MPI_Recv(&info_recv, n_int_img_info, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
             local_comm = info_recv.local_comm;
             width_recv = info_recv.width;
             height_recv = info_recv.height;
             n_int_recv = width_recv * height_recv * sizeof(pixel) / sizeof(int);
+            rank_left = info_recv.rank_left;
+            rank_right = info_recv.rank_rigth;
+            n_int_column = height_recv * sizeof(pixel) / sizeof(int);
+            n_int_ghost_cells = n_int_column * SIZE_STENCIL;
+            ghost_left = pixel_recv;
+            ghost_right = pixel_recv + ( n_int_recv * sizeof(int) / sizeof( pixel ) ) - SIZE_STENCIL * height;
 
+            // Alloc and receive data
             pixel_recv = (pixel *)malloc( n_int_recv * sizeof(int) );
             MPI_Recv(pixel_recv, n_int_recv, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, &status);
 
             apply_gray_filter_one_img(width_recv, height_recv, pixel_array);
 
+            do{
+                end_local = apply_blur_filter_one_iter_col(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20);
+                MPI_Allreduce(&end_local, &end_global, 1, MPI_INT, MPI_LOR, local_comm);
 
-            apply_blur_filter_one_img(infos->width, infos->height, pixel_array, SIZE_STENCIL, 20);
+                if( !end_global ){
+                    // Send left ghost cells, receive rigth ghost cells
+                    if( rank_left != -1 )
+                        MPI_Send(ghost_left, n_int_ghost_cells, MPI_INT, rank_left, 0, local_comm);
+                    if( rank_right != -1 )
+                        MPI_Recv(ghost_right, n_int_ghost_cells, MPI_INT, rank_right, MPI_ANY_TAG, local_comm, &status_right);
+                    
+                    // Send right ghost cells, receive left ghost cells  
+                    if( rank_right != -1 )
+                        MPI_Send(ghost_right, n_int_ghost_cells, MPI_INT, rank_right, 0, local_comm);
+                    if( rank_left != -1 )
+                        MPI_Recv(ghost_left, n_int_ghost_cells, MPI_INT, rank_left, MPI_ANY_TAG, local_comm, &status_left);
+                }
+
+            } while( !end_global);            
             
-            
-            
-            apply_sobel_filter_one_img(infos->width, infos->height, pixel_array);
+            apply_sobel_filter_one_img(width_recv, height_recv, pixel_recv);
+
+            info_recv.ghost_cells_left = 0;
+            info_recv.ghost_cells_right = 0;
+
             // Send back
-            MPI_Send(raw_msg, n_int_rcvd, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
+            MPI_Send(info_recv, n_int_img_info, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
+            MPI_Send(pixel_recv, n_int_rcvd, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
             free(pixel_recv);
         }
     }
