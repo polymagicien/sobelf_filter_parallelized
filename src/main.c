@@ -819,6 +819,10 @@ typedef struct img_info
     int height; 
     int order;
     int order_sub_img;
+    int image;
+    int ghost_cells_right;
+    int ghost_cells_left;
+    int n_columns;
 } img_info;
 
 
@@ -866,11 +870,55 @@ int get_n_parts(animated_gif image, int n_process){
     return 1;
 }
 
-void get_parts(img_infos info_array[], pixel *pixel_array[], MPI_Datatype datatypes[] animated_gif image, i, int n_parts){
+void get_parts(img_info info_array[], pixel *pixel_array[], MPI_Datatype datatypes[], animated_gif image, i, int n_parts){
+
+    int n_images = image.n_images;
+    int i,j;
+    int n_parts_by_image = n_parts/image.n_images;
+
+    
     MPI_Datatype COLUMN;
-    MPI_Type_vector(height, 3*1, width*3, MPI_INT, &COLUMN); // One column (width of 1 pixel)
-    MPI_Type_create_resized(COLUMN, 0, 3*sizeof(int), &COLUMN);
-    MPI_Type_commit(&COLUMN);
+
+    for (i = 0; i < n_images; i++){
+
+        // Declare type
+        MPI_Type_vector(image.height[i], 3*1, image.width[i]*3, MPI_INT, &COLUMN); // One column (width of 1 pixel)
+        MPI_Type_create_resized(COLUMN, 0, 3*sizeof(int), &COLUMN);
+        MPI_Type_commit(&COLUMN);
+        datatypes[i] = COLUMN;
+
+        // Set the image info
+        int p1 = 0;
+        int sub_width = width / n_parts_by_image;
+        for(j = 0; j < n_parts_by_image; j++){
+            info_array[i*n_parts_by_image+j].width = image.width[i];
+            info_array[i*n_parts_by_image+j].height = image.height[i];
+            info_array[i*n_parts_by_image+j].order = i*n_parts_by_image+j;
+            info_array[i*n_parts_by_image+j].order_sub_img = j;
+            info_array[i*n_parts_by_image+j].image = i;
+
+            // MAKING THE SUBDIVISION
+            int p2 = p1 + sub_width;
+            int ghost_right = 5;
+            int ghost_left = 5;
+
+            if (j == n_parts_by_image - 1){
+                p2 = image.width[i];
+                ghost_right = 0;
+            } else if (j == 0){
+                ghost_left = 0;
+            }
+            
+            info_array[i*n_parts_by_image+j].n_columns = p2 - p1;
+            info_array[i*n_parts_by_image+j].ghost_cells_left = ghost_left;
+            info_array[i*n_parts_by_image+j].ghost_cells_right = ghost_right;
+            pixel_array[i*n_parts_by_image+j] = image.p[i] + p1;
+
+            p1 = p2; // update
+        }
+    }
+
+   
 }
 
 /* ************************************* MAIN FUNCTION ************************************* */
