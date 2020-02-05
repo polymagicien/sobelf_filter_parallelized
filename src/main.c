@@ -820,35 +820,88 @@ typedef struct img_info
     int image; // # of image 
     int ghost_cells_right, ghost_cells_left;
     int n_columns;
-    int rank_left, rank_right;
-    MPI_DATA
+    int rank, rank_left, rank_right;
+    MPI_Comm local_comm;
 } img_info;
 
 
-void get_parts(img_info info_array[], pixel *pixel_array[], MPI_Datatype datatypes[], MPI_Comm communicators, animated_gif image, i, int n_parts, int n_im_per_round){
+void get_parts(img_info * info_array[], pixel *pixel_array[], MPI_Datatype datatypes[], MPI_Comm communicators, animated_gif image, int n_rounds, int n_im_per_round, int n_parts_by_image){
 
     int n_images = image.n_images;
-    int i,j;
+    int i,j,k;
     int n_parts_by_image = n_parts/image.n_images;
     
     // FILL COMMUNICATORS
     MPI_Group world_group;
     MPI_Comm_group(MPI_COMM_WORLD, &world_group);
+    MPI_Comm new_comm;
+    MPI_Group new_group;
     for( i = 0; i < n_im_per_round; i++){
-        
+
+        int ranks_rep[n_parts_by_image];
+        for (j = 0; j < n_parts_by_image; j++)
+            ranks_rep[j] = i*n_parts_by_image+j;
+
+        MPI_Group_incl(world_group, n_parts_by_image, ranks_rep, &new_group); 
+        MPI_Comm_create(MPI_COMM_WORLD,new_group,&new_comm)
+        communicators[i] = new_com;
     }
 
-
-    // FILL INFO_ARRAY, PIXEL-ARRAY AND DATATYPES
+    // FILL DATATYPES
     MPI_Datatype COLUMN;
     for (i = 0; i < n_images; i++){
-
-        // Declare type
         MPI_Type_vector(image.height[i], 3*1, image.width[i]*3, MPI_INT, &COLUMN); // One column (width of 1 pixel)
         MPI_Type_create_resized(COLUMN, 0, 3*sizeof(int), &COLUMN);
         MPI_Type_commit(&COLUMN);
         datatypes[i] = COLUMN;
+    }
 
+    // FILL INFO_ARRAY, PIXEL-ARRAY AND DATATYPES
+    for (i = 0; i < n_rounds; i++){
+
+        for (j = 0; j < n_im_per_round; j++){
+            int n_curr_img = i*n_im_per_round + j;
+
+            int p1 = 0;
+            int sub_width = image.width[n_curr_img] / n_parts_by_image;
+            info_array[n_curr_img] = (img_info *)malloc(n_parts_by_image * sizeof(img_info));
+
+            for (k = 0; k < n_parts_by_image; k++){
+                // GENERAL INFOS
+                info_array[n_curr_img][k].width = image.width[n_curr_img];
+                info_array[n_curr_img][k].height = image.height[n_curr_img];
+                info_array[n_curr_img][k].order = n_curr_img*n_parts_by_image + k;
+                info_array[n_curr_img][k].order_sub_img = k;
+                info_array[n_curr_img][k].image = n_curr_img;
+
+                // GHOST PROPERTIES
+                int p2 = p1 + sub_width;
+                int ghost_right = 5;
+                int ghost_left = 5;
+                if (j == n_parts_by_image - 1){
+                    p2 = image.width[i];
+                    ghost_right = 0;
+                } else if (j == 0){
+                    ghost_left = 0;
+                }
+                info_array[n_curr_img][k].ghost_cells_left = ghost_left;
+                info_array[n_curr_img][k].ghost_cells_right = ghost_right;
+                info_array[n_curr_img][k].n_columns = p2 - p1;
+
+                // OTHER PROCESS INFO
+                info_array[n_curr_img][k].rank = k;
+                info_array[n_curr_img][k].rank_left = k-1;
+                info_array[n_curr_img][k].rank_right = k+2;
+                info_array[n_curr_img][k].local_comm = communicators[j];
+
+                //FILL PIXEL_ARRAY
+                pixel_array[info_array[n_curr_img][k].order] = image.p[n_curr_img] + p1;
+            }   
+        
+        }
+    }
+
+{/* OLD VERSION
         // Set the image info
         int p1 = 0;
         int sub_width = width / n_parts_by_image;
@@ -858,7 +911,7 @@ void get_parts(img_info info_array[], pixel *pixel_array[], MPI_Datatype datatyp
             info_array[i*n_parts_by_image+j].order = i*n_parts_by_image+j;
             info_array[i*n_parts_by_image+j].order_sub_img = j;
             info_array[i*n_parts_by_image+j].image = i;
-            info_array[i*n_parts_by_image+j].rank_right = i;
+            info_array[i*n_parts_by_image+j].rank_right = i*n_images+;
             info_array[i*n_parts_by_image+j].rank_left = i;
 
             // MAKING THE SUBDIVISION
@@ -881,6 +934,7 @@ void get_parts(img_info info_array[], pixel *pixel_array[], MPI_Datatype datatyp
             p1 = p2; // update
         }
     }
+*/}
 }
 
 
@@ -948,7 +1002,7 @@ int main( int argc, char ** argv )
     double duration ;
     
     // Temporary variables
-    int i, j;
+    int i, j, k;
     MPI_Request req;
     MPI_Status status;
     int n_int_rcvd;
@@ -979,9 +1033,10 @@ int main( int argc, char ** argv )
 
     if(rank == 0){ // MASTER PROCESS
         int n_total_parts;
-        img_info *infos_parts;
+        img_info **infos_parts;
         pixel **pixels_parts;
         MPI_Datatype *datatypes;
+        MPI_Comm *communicators;
 
         /****** LOAD FILE INTO image PHASE ******/
         if(load_image_from_file(&image, &n_images, input_filename) == 1)
@@ -993,26 +1048,73 @@ int main( int argc, char ** argv )
         
         // Decide # processes / img 
         n_total_parts = get_n_parts( image, n_process );
-        infos_parts = ( img_info * )malloc( n_total_parts * sizeof( img_info ) );
+        int n_rounds = 10;
+        int n_parts_per_image = 10;
+        int n_img_per_round = 2;
+
+        // Malloc the different tables
+        infos_parts = ( img_info ** )malloc( n_images * sizeof( img_info * ) );
         pixels_parts = ( pixels_parts ** )malloc( n_total_parts * sizeof( pixel * ) );
         datatypes = ( MPI_Datatype * )malloc( n_images * sizeof( MPI_Datatype ) );
+        communicators = ( MPI_Comm * )malloc( n_img_per_round * sizeof( MPI_Comm ) );
 
-        get_parts( infos_parts, pixels_parts, datatypes, image, n_total_parts );
+        // Preprocessing of the headers, datatypes and communicators 
+        get_parts( infos_parts, pixels_parts, datatypes, communicators, image, n_rounds, n_im_per_round, n_parts_per_image);
 
+        // Declare other things
         int size_img_info = sizeof( img_info ) / sizeof( int );
         MPI_Datatype temp_type;
-        int n_columns_sent;
+        int n_columns_sent[n_parts_per_image];
+        int info_size = sizeof(img_info)/sizeof(int);
+
+        // PROCESSING PHASE
+        for (i = 0; i < n_rounds; i++){
+
+            // SEND ONE ROUND
+            for (j = 0; j < n_img_per_round; j++){
+                int curr_image_number = i*n_img_per_round+j;
+
+                for(k = 0; k < n_parts_per_image; k++){
+                    int curr_part_number = curr_image_number*n_parts_per_image + k;
+                    img_info * curr_infos = *(infos_parts[curr_image_number][k]);
+
+                    MPI_Isend( curr_infos , size_img_info, MPI_INT, k+j*n_parts_per_image, 0, MPI_COMM_WORLD, &req);
+                    MPI_Isend( pixels_parts[curr_part_number], curr_infos->n_columns, datatypes[ curr_image_number], k + j*n_img_per_round, MPI_COMM_WORLD, &req);
+                }
+                
+                {// OLD VERSION SCATTER
+                    /*MPI_Scatter(infos_parts,info_size,MPI_INT,&info_img_to_process, info_size,MPI_INT,0,communicators[j] );
+                    // allocate the good size to receive the part of the image to the name img_to_process_buf, and p_i_size
+
+                    MPI_Scatterv(&(image.p[curr_image_number]), n_columns_sent, , datatypes[ curr_image_number ],
+                            &img_to_process_buf, p_i_size, MPI_INT, 0, communicators[j])
+                
+                */
+                }
+           }
+
+            // PROCESS DATA AFFECTED TO THE ROOT
+            ///
+
+            for (j = 0; j < n_img_per_round; j++){
+                
+            }
+        }
+
+
+
+        /*
         // SENDING PHASE: original images
         for( i = 0; i < n_total_parts; i++ ){
             n_columns_sent = infos_parts[i].n_columns;
             MPI_Isend( infos_parts + i, size_img_info, MPI_INT, i % (n_process - 1) + 1, 0, MPI_COMM_WORLD, &req);
-            MPI_Isend( pixels_parts[i], n_columns_sent, datatypes[ infos_parts[i].image ], i % (n_process - 1) + 1, MPI_COMM_WORLD, &req);
+           
         }
 
         // PROCESSING THE FEW ASSIGNED PARTS
         /*
 
-        */
+        
 
         // RECEIVING PHASE: modified images
         MPI_Request req_array[n_total_parts];
@@ -1026,7 +1128,7 @@ int main( int argc, char ** argv )
             temp_type = datatypes[ info_recv.image ];
             MPI_Irecv( first_column, info_recv.n_columns, temp_type, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &(req_array[i]));
         }
-
+        */
         MPI_Waitall(n_total_parts, req_array, status_array);
 
         // Send "end" signal to processes
