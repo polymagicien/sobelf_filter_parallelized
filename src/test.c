@@ -806,6 +806,17 @@ void test_communicators(int argc, char **argv){
 
 // TEST GET_INFO
 
+void display_image(animated_gif image){
+    printf("Displaying image\n");
+    int i,k;
+    for(k = 0; k<image.n_images; k++){
+    for (i = 0; i < 16; i++){
+        printf(" %d ", image.p[k][i].b);
+    }
+    printf("\n");
+    }
+}
+
 typedef struct img_info
 {
     int width, height; 
@@ -814,34 +825,16 @@ typedef struct img_info
     int ghost_cells_right, ghost_cells_left;
     int n_columns;
     int rank, rank_left, rank_right;
-    MPI_Comm local_comm;
 } img_info;
 
 
-MPI_Comm create_communicator(int size, int ranks[]){
-
-    // Create communicator
-    MPI_Group world_group, new_group;
-    MPI_Comm_group(MPI_COMM_WORLD, &world_group);
-    MPI_Comm new_comm;
-    MPI_Group_incl(world_group, size, ranks, &new_group); 
-    MPI_Comm_create(MPI_COMM_WORLD, new_group, &new_comm);
-
-    return new_comm;
-}
-
-void fill_communicators(MPI_Comm *communicators, int n_im_per_round, int n_parts_by_image){
-    int i, j;
-    for( i = 0; i < n_im_per_round; i++){
-
-        // Find the right process for image # i
-        int ranks_rep[n_parts_by_image];
-        for (j = 0; j < n_parts_by_image; j++)
-            ranks_rep[j] = n_im_per_round * n_parts_by_image + j;
-
-        // Compute the communicator
-        communicators[i] = create_communicator(n_parts_by_image, ranks_rep);
+void display_list(pixel * table, int len){
+    printf("Displaying liste\n");
+    int i;
+    for (i = 0; i < len; i++){
+        printf(" %d ", table[i].b);
     }
+    printf("\n");
 }
 
 MPI_Datatype create_column(int width, int height){
@@ -855,12 +848,7 @@ MPI_Datatype create_column(int width, int height){
 void fill_info_part_for_one_image(img_info * info_array,int n_parts, int n_img, int width, int height){
 
     int standard_n_columns = width / n_parts;
-    int last_col = standard_n_columns;
-
-    if (width % n_parts != 0){
-        standard_n_columns = width / (n_parts -1);
-        last_col = width % (n_parts-1);
-    }
+    int last_col = width - standard_n_columns * (n_parts-1);
 
     int k;
     for (k = 0; k < n_parts; k++){
@@ -894,26 +882,14 @@ void fill_info_part_for_one_image(img_info * info_array,int n_parts, int n_img, 
 }
 
 void fill_pixel_column_pointers_for_one_image(pixel* pixel_array[], int n_img, int width, animated_gif image, int n_parts, img_info infos[] ){
-    printf("INFUNCTION");
-    int i; 
-    int n_columns = width / n_parts;
+    int i;
+    pixel * ptr_tot = image.p[1];
+
     for (i=0; i < n_parts; i++){
         int global_number = infos[i].order;
-        pixel_array[global_number] = image.p[n_img] + i * n_columns; 
+        pixel_array[global_number] = ptr_tot;
+        ptr_tot = ptr_tot + infos[i].n_columns;
     }
-}
-
-void auto_assign_comm(MPI_Comm communicators[], img_info * info_array[], int n_image_per_round, int n_parts_by_image, int n_images){
-
-    // Create the communicators
-    fill_communicators(communicators, n_image_per_round, n_parts_by_image);
-    int i, k;
-    for (i = 0; i < n_images; i++){
-        // FILL COMMUNICATORS : assign the communicator for each part 
-        for (k = 0; k < n_parts_by_image; k++)
-            info_array[i][k].local_comm = communicators[i % n_image_per_round];
-    }
-
 }
 
 
@@ -940,7 +916,7 @@ animated_gif create_gif(int n){
 
     animated_gif image;
     int i;
-    int width = 100;
+    int width = 8;
     int height = 2;
 
     image.n_images = n;
@@ -954,7 +930,7 @@ animated_gif create_gif(int n){
     }
 
     int k;
-    for(k = 1; k<n; k++){
+    for(k = 0; k<n; k++){
     for (i = 0; i < height*width; i++){
         image.p[k][i].r = i;
         image.p[k][i].b = i;
@@ -968,9 +944,6 @@ animated_gif create_gif(int n){
 
 }
 
-void display(img_info i){
-    
-}
 
 void test_get_parts(int argc, char ** argv){
 
@@ -984,46 +957,64 @@ void test_get_parts(int argc, char ** argv){
 
     if (rank == 0){
 
-     // Decide # processes / img 
-    //int n_total_parts = get_n_parts( image, n_process );
-    int n_images = 4;
-    //int n_rounds = 1;
-    int n_parts_per_image = 4;
-    //int n_img_per_round = 1;
+        // Decide # processes / img 
+        //int n_total_parts = get_n_parts( image, n_process );
+        int n_images = 4;
+        //int n_rounds = 1;
+        int n_parts_per_image = 4;
+        int n_img_per_round = 1;
 
-    animated_gif image = create_gif(n_images);
+        animated_gif image = create_gif(n_images);
 
-    // Malloc the different tables
-    img_info **infos_parts = ( img_info ** )malloc( n_images * sizeof( img_info * ) ); // double table of img_info: infos_parts[n_image][n_part]
-    int i;
-    for (i = 0; i < n_images; i++)
-        infos_parts[i] = (img_info*)malloc( n_parts_per_image * sizeof(img_info) );
+        int i;
+
+        // Malloc the different tables
+        img_info **infos_parts = ( img_info ** )malloc( n_images * sizeof( img_info * ) ); // double table of img_info: infos_parts[n_image][n_part]
+        for (i = 0; i < n_images; i++)
+            infos_parts[i] = (img_info*)malloc( n_parts_per_image * sizeof(img_info) );
 
 
-    pixel *pixels_parts[n_images*n_parts_per_image]; // double table of pointers to pixel: pixels_parts[n_image][n_part]
-   // pixel *** pixels_p =  pixels_parts;
+        pixel *pixels_parts[n_images*n_parts_per_image]; // double table of pointers to pixel: pixels_parts[n_image][n_part]
 
-    MPI_Datatype *datatypes = ( MPI_Datatype * )malloc( n_images * sizeof( MPI_Datatype ) ); // table of datatypes: datatypes[n_image]
-    //MPI_Comm *communicators = ( MPI_Comm * )malloc( n_img_per_round * sizeof( MPI_Comm ) ); // table of comms: communicators[n_image_in_round]
+        MPI_Datatype *datatypes = ( MPI_Datatype * )malloc( n_images * sizeof( MPI_Datatype ) ); // table of datatypes: datatypes[n_image]
 
-    printf("Will process get_parts");
-    get_parts( infos_parts, pixels_parts, datatypes,image, n_parts_per_image);
-    //auto_assign_comm(communicators,info_array,n_img_per_round,n_parts_per_image,n_images);
+        printf("Will process get_parts");
+        get_parts( infos_parts, pixels_parts, datatypes,image, n_parts_per_image);
 
-    int j;
-    printf("Initialization finished %d %d\n", n_images, n_parts_per_image);
-    for (i=0; i<n_images; i++){
-        for (j=0; j<n_parts_per_image; j++){
-           // printf(".");
-           printf("Part %d (global #: %d) ---- Width: %d, Height: %d, Image: %d ----- (p:%d) [%d %d %d] (p:%d) \n ", infos_parts[i][j].order_sub_img,
-            infos_parts[i][j].order, infos_parts[i][j].width, infos_parts[i][j].height, infos_parts[i][j].image, infos_parts[i][j].rank_left,
-             infos_parts[i][j].ghost_cells_left, infos_parts[i][j].n_columns, infos_parts[i][j].ghost_cells_right,  infos_parts[i][j].rank_right);
 
+
+        int j;
+        printf("\nInitialization finished\n");
+        for (i=0; i<n_images; i++){
+            for (j=0; j<n_parts_per_image; j++){
+            // printf(".");
+            printf("Part %d (global #: %d) ---- Width: %d, Height: %d, Image: %d ----- (p:%d) [%d %d %d] (p:%d) ---> point to %d \n", infos_parts[i][j].order_sub_img,
+                infos_parts[i][j].order, infos_parts[i][j].width, infos_parts[i][j].height, infos_parts[i][j].image, infos_parts[i][j].rank_left,
+                infos_parts[i][j].ghost_cells_left, infos_parts[i][j].n_columns, infos_parts[i][j].ghost_cells_right,  infos_parts[i][j].rank_right, pixels_parts[i*n_parts_per_image+j]->b);
+
+            }
         }
-    }
 
     }
     MPI_Finalize();
+}
+
+void test_cast_column(int argc, char ** argv){
+
+    // MPI
+    int n_process, rank;
+    MPI_Init(&argc, &argv);
+
+    MPI_Datatype type = create_column(10,10);
+
+    int tab[10][10];
+    
+    int i,j;
+    for (i=)
+
+
+    MPI_Finalize();
+    
 }
 
 
@@ -1054,6 +1045,8 @@ int main( int argc, char ** argv )
         case 6:
             test_get_parts(argc-1, argv+1);
             break;
+        case 10:
+            test_cast_column(argc-1, argv+1);
         default:
             printf("Wrong argument\n");
             break;
