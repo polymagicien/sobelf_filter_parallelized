@@ -467,6 +467,10 @@ int conv(int i, int j, int width){
     return i*width + j;
 }
 
+/****************************************************************************************************************************************************/
+
+// FUNCTIONS FOR EARLY TESTS
+
 int load_image_from_file(animated_gif **image , int *n_images, char *input_filename){
     struct timeval t1, t2;
     gettimeofday(&t1, NULL);
@@ -804,9 +808,6 @@ void test_communicators(int argc, char **argv){
 
 }
 
-
-// TEST GET_INFO
-
 void display_image(animated_gif image){
     printf("Displaying image\n");
     int i,k;
@@ -818,6 +819,20 @@ void display_image(animated_gif image){
     }
 }
 
+void display_list(pixel * table, int len){
+    printf("Displaying liste\n");
+    int i;
+    for (i = 0; i < len; i++){
+        printf(" %d ", table[i].b);
+    }
+    printf("\n");
+}
+
+
+/****************************************************************************************************************************************************/
+
+// FUNCTIONS TO CREATE INFORMATION OF PARTS
+
 typedef struct img_info
 {
     int width, height; 
@@ -827,16 +842,6 @@ typedef struct img_info
     int n_columns;
     int rank, rank_left, rank_right;
 } img_info;
-
-
-void display_list(pixel * table, int len){
-    printf("Displaying liste\n");
-    int i;
-    for (i = 0; i < len; i++){
-        printf(" %d ", table[i].b);
-    }
-    printf("\n");
-}
 
 MPI_Datatype create_column(int width, int height){
     MPI_Datatype COLUMN;
@@ -882,18 +887,7 @@ void fill_info_part_for_one_image(img_info * info_array,int n_parts, int n_img, 
     }
 }
 
-void fill_pixel_column_pointers_for_one_image(pixel* pixel_array[], int n_img, int width, animated_gif image, int n_parts, img_info infos[] ){
-    int i;
-    pixel * ptr_tot = image.p[1];
-
-    for (i=0; i < n_parts; i++){
-        int global_number = infos[i].order;
-        pixel_array[global_number] = ptr_tot;
-        ptr_tot = ptr_tot + infos[i].n_columns;
-    }
-}
-
-void fill_pixel_column_pointers_for_one_image_sam(pixel* pixel_array[], pixel *img_pixel, int width, int n_parts, img_info infos[]){
+void fill_pixel_column_pointers_for_one_image(pixel* pixel_array[], pixel *img_pixel, int n_parts, img_info infos[]){
     int i; 
     pixel *head = img_pixel;
     for (i=0; i < n_parts; i++){
@@ -901,21 +895,6 @@ void fill_pixel_column_pointers_for_one_image_sam(pixel* pixel_array[], pixel *i
         head += infos[i].n_columns;
     }
 }
-
-// Obsolete as MPI_Comm_create COLLECTIVE
-// void auto_assign_comm(MPI_Comm communicators[], img_info * info_array[], int n_image_per_round, int n_parts_by_image, int n_images){
-
-//     // Create the communicators
-//     fill_communicators(communicators, n_image_per_round, n_parts_by_image);
-//     int i, k;
-//     for (i = 0; i < n_images; i++){
-//         // FILL COMMUNICATORS : assign the communicator for each part 
-//         for (k = 0; k < n_parts_by_image; k++)
-//             info_array[i][k].local_comm = communicators[i % n_image_per_round];
-//     }
-
-// }
-
 
 void get_parts(img_info * info_array[], pixel* pixel_array[], MPI_Datatype datatypes[], animated_gif image, int n_parts_by_image){
 
@@ -926,16 +905,17 @@ void get_parts(img_info * info_array[], pixel* pixel_array[], MPI_Datatype datat
         datatypes[i] = create_column(image.width[i], image.height[i]);
 
         // FILL INFO_ARRAY : create all the img_info of the parts of this image
-        //info_array[i] = (img_info *)malloc(n_parts_by_image * sizeof(img_info));
         fill_info_part_for_one_image(info_array[i], n_parts_by_image, i, image.width[i], image.height[i]);
 
         // FILL PIXEL ARRAY : 
-        //pixel_array[i] = ( pixel ** )malloc( n_parts_by_image * sizeof(pixel*) );
-        fill_pixel_column_pointers_for_one_image( pixel_array, i, image.width[i], image, n_parts_by_image, info_array[i] );
+        fill_pixel_column_pointers_for_one_image( pixel_array, image.p[i], n_parts_by_image, info_array[i] );
 
     }
 }
 
+/****************************************************************************************************************************************************/
+
+// TEST CREATE FUNCTIONS
 animated_gif create_gif(int n){
 
     animated_gif image;
@@ -968,7 +948,6 @@ animated_gif create_gif(int n){
 
 }
 
-
 void test_get_parts(int argc, char ** argv){
 
     // MPI
@@ -986,7 +965,7 @@ void test_get_parts(int argc, char ** argv){
         int n_images = 4;
         //int n_rounds = 1;
         int n_parts_per_image = 4;
-        int n_img_per_round = 1;
+        //int n_img_per_round = 1;
 
         animated_gif image = create_gif(n_images);
 
@@ -1025,21 +1004,27 @@ void test_get_parts(int argc, char ** argv){
 
 void test_cast_column(int argc, char ** argv){
 
-    // MPI
-    int n_process, rank;
-    MPI_Init(&argc, &argv);
+    // // MPI
+    // int n_process, rank;
+    // MPI_Init(&argc, &argv);
 
-    MPI_Datatype type = create_column(10,10);
+    // MPI_Datatype type = create_column(10,10);
 
-    int tab[10][10];
+    // int tab[10][10];
     
-    int i,j;
-    for (i=)
+    // int i,j;
+    // for (i=0; i < 10; i++){
+    //     for (j=0; j < 10; j++){
+    //         tab[i][j] = i*10 + j;
+    //     }
+    // }
 
 
-    MPI_Finalize();
+    // MPI_Finalize();
 }
-    
+
+
+// FIRST TESTS ON ONE IMAGE
 #define CONV_COL(l,c,nb_l) \
     (c)*(nb_l)+(l) 
 
@@ -1165,7 +1150,6 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
         return 1;
 }
 
-
 void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){
     pixel *pixel_ghost_left, *pixel_ghost_right, *pixel_middle;
     int n_int_recv;
@@ -1190,6 +1174,7 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){
     n_int_recv = width_recv * height_recv * sizeof(pixel) / sizeof(int);
 
     sleep(info_recv.order_sub_img);
+
 
     // print_array(pixel_ghost_left, info_recv.ghost_cells_left * height_recv, height_recv, "LEFT");
     // print_array(pixel_middle, info_recv.n_columns * height_recv, height_recv, "MIDDLE");
@@ -1264,7 +1249,7 @@ void test_blur_multiple_parts(int argc, char **argv){
         }
 
         fill_info_part_for_one_image(parts_info, n_parts, 1, width, height);
-        fill_pixel_column_pointers_for_one_image_sam(parts_pixel, img_pixels, width, n_parts, parts_info);
+        fill_pixel_column_pointers_for_one_image(parts_pixel, img_pixels, n_parts, parts_info);
 
         print_array(img_pixels, n_pixels, width, "INITIAL");
 
@@ -1328,8 +1313,8 @@ void test_blur_multiple_parts(int argc, char **argv){
     MPI_Finalize();
 }
 
+/****************************************************************************************************************************************************/
 
-//
 // Main entry point
 int main( int argc, char ** argv )
 {
