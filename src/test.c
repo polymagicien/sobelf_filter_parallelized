@@ -5,6 +5,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <math.h>
 #include <string.h>
 #include <sys/time.h>
@@ -892,6 +893,29 @@ void fill_pixel_column_pointers_for_one_image(pixel* pixel_array[], int n_img, i
     }
 }
 
+void fill_pixel_column_pointers_for_one_image_sam(pixel* pixel_array[], pixel *img_pixel, int width, int n_parts, img_info infos[]){
+    int i; 
+    pixel *head = img_pixel;
+    for (i=0; i < n_parts; i++){
+        pixel_array[i] = head;
+        head += infos[i].n_columns;
+    }
+}
+
+// Obsolete as MPI_Comm_create COLLECTIVE
+// void auto_assign_comm(MPI_Comm communicators[], img_info * info_array[], int n_image_per_round, int n_parts_by_image, int n_images){
+
+//     // Create the communicators
+//     fill_communicators(communicators, n_image_per_round, n_parts_by_image);
+//     int i, k;
+//     for (i = 0; i < n_images; i++){
+//         // FILL COMMUNICATORS : assign the communicator for each part 
+//         for (k = 0; k < n_parts_by_image; k++)
+//             info_array[i][k].local_comm = communicators[i % n_image_per_round];
+//     }
+
+// }
+
 
 void get_parts(img_info * info_array[], pixel* pixel_array[], MPI_Datatype datatypes[], animated_gif image, int n_parts_by_image){
 
@@ -1014,7 +1038,294 @@ void test_cast_column(int argc, char ** argv){
 
 
     MPI_Finalize();
+}
     
+#define CONV_COL(l,c,nb_l) \
+    (c)*(nb_l)+(l) 
+
+int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, int threshold )
+{
+    int j, k ;
+    int end = 0 ;
+
+    pixel * new ;
+    int n_iter = 0 ;
+
+    /* Allocate array of new pixels */
+    new = (pixel *)malloc(width * height * sizeof( pixel ) ) ;
+
+    end = 1 ;
+    n_iter++ ;
+
+    // Copy pixels of images in ew 
+    for(j=0; j<height-1; j++)
+    {
+        for(k=0; k<width-1; k++)
+        {
+            new[CONV_COL(j,k,height)].r = p[CONV_COL(j,k,height)].r ;
+            new[CONV_COL(j,k,height)].g = p[CONV_COL(j,k,height)].g ;
+            new[CONV_COL(j,k,height)].b = p[CONV_COL(j,k,height)].b ;
+        }
+    }
+
+    /* Apply blur on top part of image (10%) */
+    for(j=size; j<height/10-size; j++)
+    {
+        for(k=size; k<width-size; k++)
+        {
+            int stencil_j, stencil_k ;
+            int t_r = 0 ;
+            int t_g = 0 ;
+            int t_b = 0 ;
+
+            for ( stencil_j = -size ; stencil_j <= size ; stencil_j++ )
+            {
+                for ( stencil_k = -size ; stencil_k <= size ; stencil_k++ )
+                {
+                    t_r += p[CONV_COL(j+stencil_j,k+stencil_k,height)].r ;
+                    t_g += p[CONV_COL(j+stencil_j,k+stencil_k,height)].g ;
+                    t_b += p[CONV_COL(j+stencil_j,k+stencil_k,height)].b ;
+                }
+            }
+
+            new[CONV_COL(j,k,height)].r = t_r / ( (2*size+1)*(2*size+1) ) ;
+            new[CONV_COL(j,k,height)].g = t_g / ( (2*size+1)*(2*size+1) ) ;
+            new[CONV_COL(j,k,height)].b = t_b / ( (2*size+1)*(2*size+1) ) ;
+        }
+    }
+
+    /* Copy the middle part of the image */
+    for(j=height/10-size; j<height*0.9+size; j++)
+    {
+        for(k=size; k<width-size; k++)
+        {
+            new[CONV_COL(j,k,height)].r = p[CONV_COL(j,k,height)].r ; 
+            new[CONV_COL(j,k,height)].g = p[CONV_COL(j,k,height)].g ; 
+            new[CONV_COL(j,k,height)].b = p[CONV_COL(j,k,height)].b ; 
+        }
+    }
+
+    /* Apply blur on the bottom part of the image (10%) */
+    for(j=height*0.9+size; j<height-size; j++)
+    {
+        for(k=size; k<width-size; k++)
+        {
+            int stencil_j, stencil_k ;
+            int t_r = 0 ;
+            int t_g = 0 ;
+            int t_b = 0 ;
+
+            for ( stencil_j = -size ; stencil_j <= size ; stencil_j++ )
+            {
+                for ( stencil_k = -size ; stencil_k <= size ; stencil_k++ )
+                {
+                    t_r += p[CONV_COL(j+stencil_j,k+stencil_k,height)].r ;
+                    t_g += p[CONV_COL(j+stencil_j,k+stencil_k,height)].g ;
+                    t_b += p[CONV_COL(j+stencil_j,k+stencil_k,height)].b ;
+                }
+            }
+
+            new[CONV_COL(j,k,height)].r = t_r / ( (2*size+1)*(2*size+1) ) ;
+            new[CONV_COL(j,k,height)].g = t_g / ( (2*size+1)*(2*size+1) ) ;
+            new[CONV_COL(j,k,height)].b = t_b / ( (2*size+1)*(2*size+1) ) ;
+        }
+    }
+
+    for(j=1; j<height-1; j++)
+    {
+        for(k=1; k<width-1; k++)
+        {
+
+            float diff_r ;
+            float diff_g ;
+            float diff_b ;
+
+            diff_r = (new[CONV_COL(j  ,k  ,height)].r - p[CONV_COL(j  ,k  ,height)].r) ;
+            diff_g = (new[CONV_COL(j  ,k  ,height)].g - p[CONV_COL(j  ,k  ,height)].g) ;
+            diff_b = (new[CONV_COL(j  ,k  ,height)].b - p[CONV_COL(j  ,k  ,height)].b) ;
+
+            if ( diff_r > threshold || -diff_r > threshold 
+                    ||
+                        diff_g > threshold || -diff_g > threshold
+                        ||
+                        diff_b > threshold || -diff_b > threshold
+                ) {
+                end = 0 ;
+            }
+
+            p[CONV_COL(j  ,k  ,height)].r = new[CONV_COL(j  ,k  ,height)].r ;
+            p[CONV_COL(j  ,k  ,height)].g = new[CONV_COL(j  ,k  ,height)].g ;
+            p[CONV_COL(j  ,k  ,height)].b = new[CONV_COL(j  ,k  ,height)].b ;
+        }
+    }
+    free (new) ;
+    if ( threshold > 0 && !end )
+        return 0;
+    else
+        return 1;
+}
+
+
+void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){
+    pixel *pixel_ghost_left, *pixel_ghost_right, *pixel_middle;
+    int n_int_recv;
+    int end_local, end_global;
+
+    int height_recv, width_recv, rank_left, rank_right, n_pixels_recv;
+    int n_int_column;
+    int n_int_img_info = sizeof(img_info) / sizeof(int);
+    int n_int_ghost_cells;
+    MPI_Status status_left, status_right;
+
+    // MPI_Request req_left, req_right;
+    height_recv = info_recv.height;
+    width_recv = info_recv.ghost_cells_left + info_recv.n_columns + info_recv.ghost_cells_right;
+    n_pixels_recv = width_recv * height_recv;
+    rank_left = info_recv.rank_left;
+    rank_right = info_recv.rank_right;
+    n_int_column = height_recv * sizeof(pixel) / sizeof(int);
+    pixel_ghost_left = pixel_recv;
+    pixel_middle = pixel_ghost_left + info_recv.ghost_cells_left * height_recv;
+    pixel_ghost_right = pixel_middle + info_recv.n_columns * height_recv;
+    n_int_recv = width_recv * height_recv * sizeof(pixel) / sizeof(int);
+
+    sleep(info_recv.order_sub_img);
+
+    // print_array(pixel_ghost_left, info_recv.ghost_cells_left * height_recv, height_recv, "LEFT");
+    // print_array(pixel_middle, info_recv.n_columns * height_recv, height_recv, "MIDDLE");
+    // print_array(pixel_ghost_right, info_recv.ghost_cells_right * height_recv, height_recv, "RIGHT");
+
+    apply_gray_filter_one_img(width_recv, height_recv, pixel_recv);
+    // do{
+    // end_local = apply_blur_filter_one_iter_col(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20);
+    // MPI_Allreduce(&end_local, &end_global, 1, MPI_INT, MPI_SUM, local_comm);
+    
+
+    //     if( !end_global ){
+    //         // Send left ghost cells, receive rigth ghost cells
+    //         if( rank_left != -1 )
+    //             MPI_Send(ghost_left, n_int_ghost_cells, MPI_INT, rank_left, 0, local_comm);
+    //         if( rank_right != -1 )
+    //             MPI_Recv(ghost_right, n_int_ghost_cells, MPI_INT, rank_right, MPI_ANY_TAG, local_comm, &status_right);
+            
+    //         // Send right ghost cells, receive left ghost cells  
+    //         if( rank_right != -1 )
+    //             MPI_Send(ghost_right, n_int_ghost_cells, MPI_INT, rank_right, 0, local_comm);
+    //         if( rank_left != -1 )
+    //             MPI_Recv(ghost_left, n_int_ghost_cells, MPI_INT, rank_left, MPI_ANY_TAG, local_comm, &status_left);
+    //     }
+
+    // } while( !end_global);            
+    
+    // apply_sobel_filter_one_img(width_recv, height_recv, pixel_recv);
+
+    // info_recv.ghost_cells_left = 0;
+    // info_recv.ghost_cells_right = 0;
+
+    // // Send back
+    // MPI_Send(info_recv, n_int_img_info, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
+    // MPI_Send(pixel_recv, n_int_rcvd, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
+}
+
+void test_blur_multiple_parts(int argc, char **argv){
+    /*
+        n_process >= 2
+    */
+    // MPI_INIT
+    int n_process, rank;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &n_process);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    
+
+    int n_int_img_info = sizeof(img_info) / sizeof(int);
+    int n_parts;
+    MPI_Comm local_comm;
+    int height, width, n_pixels;
+    int i;
+    img_info *parts_info = NULL;
+    pixel **parts_pixel = NULL;
+
+    if(rank == 0){
+        height = 2;
+        width = 30;
+        n_pixels = height * width;
+        n_parts = 3;
+        pixel *img_pixels = (pixel *)malloc(n_pixels * sizeof(pixel));
+
+        parts_info = (img_info *)malloc(n_parts * sizeof(img_info));
+        parts_pixel = (pixel **)malloc(n_parts * sizeof(pixel *));
+
+        // Init array
+        for(i=0; i<n_pixels; i++){
+            img_pixels[i].r = i;
+            img_pixels[i].g = i;
+            img_pixels[i].b = i;
+        }
+
+        fill_info_part_for_one_image(parts_info, n_parts, 1, width, height);
+        fill_pixel_column_pointers_for_one_image_sam(parts_pixel, img_pixels, width, n_parts, parts_info);
+
+        print_array(img_pixels, n_pixels, width, "INITIAL");
+
+    }
+    MPI_Bcast(&n_parts, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Comm_split(MPI_COMM_WORLD, rank/n_parts, rank, &local_comm);
+
+    int hello = rank;
+    MPI_Bcast(&hello, 1, MPI_INT, 0, local_comm);
+    printf("%d - %d\n", rank, hello);
+    if(rank == 0){
+        MPI_Datatype COLUMN = create_column(width, height);
+
+        pixel *beg_pixel;
+        int n_total_columns;
+        int rank_dest;
+        for(i=1; i<n_parts; i++){
+            beg_pixel = parts_pixel[i] - parts_info[i].ghost_cells_left;
+            n_total_columns = parts_info[i].ghost_cells_left + parts_info[i].n_columns + parts_info[i].ghost_cells_right;
+            rank_dest = i;
+            MPI_Send(&(parts_info[i]), n_int_img_info, MPI_INT, rank_dest, 0, MPI_COMM_WORLD);
+            MPI_Send(beg_pixel, n_total_columns, COLUMN, rank_dest, 0, MPI_COMM_WORLD);
+        }
+        MPI_Status status;
+        beg_pixel = parts_pixel[0] - parts_info[0].ghost_cells_left;
+        n_total_columns = parts_info[0].ghost_cells_left + parts_info[0].n_columns + parts_info[0].ghost_cells_right;
+        MPI_Bsend(beg_pixel, n_total_columns, COLUMN, 0, 0, MPI_COMM_SELF);
+
+        int n_pixels_recv = n_total_columns * height;
+        pixel *pixel_recv = (pixel *)malloc( n_pixels_recv * sizeof(pixel) );
+        MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
+        call_worker(local_comm, parts_info[0], pixel_recv);
+    }
+    else {
+        MPI_Status status;
+        int n_int_recv;
+
+        img_info info_recv;
+        pixel *pixel_recv;
+
+
+        while(1){
+         // Check what is sent
+            MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            MPI_Get_count(&status, MPI_INT, &n_int_recv);
+            if(n_int_recv == 1) // Signal for stop
+                break;
+
+            // Receive header
+            MPI_Recv(&info_recv, n_int_img_info, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
+            int n_pixels_recv = info_recv.height *(info_recv.ghost_cells_left + info_recv.n_columns + info_recv.ghost_cells_right);
+
+            // Alloc and receive data
+            pixel_recv = (pixel *)malloc( n_pixels_recv * sizeof(pixel) );
+            MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
+
+            call_worker(local_comm, info_recv, pixel_recv);
+            break;
+        }
+    }
+    MPI_Finalize();
 }
 
 
@@ -1027,26 +1338,30 @@ int main( int argc, char ** argv )
 
     switch( fun ){
         case 1:
-            test_rotation(argc, argv + 1);
+            test_rotation(argc-1, argv + 1);
             break;
         case 2:
-            test_filters(argc, argv + 1);
+            test_filters(argc-1, argv + 1);
             break;
         case 3:
-            test_mpi_vector(argc, argv + 1);
+            test_mpi_vector(argc-1, argv + 1);
             break;
             break;
         case 4:
-            test_send_huge_img(argc, argv + 1);
+            test_send_huge_img(argc-1, argv + 1);
             break;
         case 5:
-            test_communicators(argc, argv + 1);
+            test_communicators(argc-1, argv + 1);
             break;
         case 6:
             test_get_parts(argc-1, argv+1);
             break;
         case 10:
             test_cast_column(argc-1, argv+1);
+            break;
+        case 7:
+            test_blur_multiple_parts(argc-1, argv+1);
+            break;
         default:
             printf("Wrong argument\n");
             break;
