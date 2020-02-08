@@ -239,6 +239,341 @@ int output_modified_read_gif( char * filename, GifFileType * g )
     return 1 ;
 }
 
+int store_pixels( char * filename, animated_gif * image )
+{
+    int n_colors = 0 ;
+    pixel ** p ;
+    int i, j, k ;
+    GifColorType * colormap ;
+
+    /* Initialize the new set of colors */
+    colormap = (GifColorType *)malloc( 256 * sizeof( GifColorType ) ) ;
+    if ( colormap == NULL ) 
+    {
+        fprintf( stderr,
+                "Unable to allocate 256 colors\n" ) ;
+        return 0 ;
+    }
+
+    /* Everything is white by default */
+    for ( i = 0 ; i < 256 ; i++ ) 
+    {
+        colormap[i].Red = 255 ;
+        colormap[i].Green = 255 ;
+        colormap[i].Blue = 255 ;
+    }
+
+    /* Change the background color and store it */
+    int moy ;
+    moy = (
+            image->g->SColorMap->Colors[ image->g->SBackGroundColor ].Red
+            +
+            image->g->SColorMap->Colors[ image->g->SBackGroundColor ].Green
+            +
+            image->g->SColorMap->Colors[ image->g->SBackGroundColor ].Blue
+            )/3 ;
+    if ( moy < 0 ) moy = 0 ;
+    if ( moy > 255 ) moy = 255 ;
+
+#if SOBELF_DEBUG
+    printf( "[DEBUG] Background color (%d,%d,%d) -> (%d,%d,%d)\n",
+            image->g->SColorMap->Colors[ image->g->SBackGroundColor ].Red,
+            image->g->SColorMap->Colors[ image->g->SBackGroundColor ].Green,
+            image->g->SColorMap->Colors[ image->g->SBackGroundColor ].Blue,
+            moy, moy, moy ) ;
+#endif
+
+    colormap[0].Red = moy ;
+    colormap[0].Green = moy ;
+    colormap[0].Blue = moy ;
+
+    image->g->SBackGroundColor = 0 ;
+
+    n_colors++ ;
+
+    /* Process extension blocks in main structure */
+    for ( j = 0 ; j < image->g->ExtensionBlockCount ; j++ )
+    {
+        int f ;
+
+        f = image->g->ExtensionBlocks[j].Function ;
+        if ( f == GRAPHICS_EXT_FUNC_CODE )
+        {
+            int tr_color = image->g->ExtensionBlocks[j].Bytes[3] ;
+
+            if ( tr_color >= 0 &&
+                    tr_color < 255 )
+            {
+
+                int found = -1 ;
+
+                moy = 
+                    (
+                     image->g->SColorMap->Colors[ tr_color ].Red
+                     +
+                     image->g->SColorMap->Colors[ tr_color ].Green
+                     +
+                     image->g->SColorMap->Colors[ tr_color ].Blue
+                    ) / 3 ;
+                if ( moy < 0 ) moy = 0 ;
+                if ( moy > 255 ) moy = 255 ;
+
+#if SOBELF_DEBUG
+                printf( "[DEBUG] Transparency color image %d (%d,%d,%d) -> (%d,%d,%d)\n",
+                        i,
+                        image->g->SColorMap->Colors[ tr_color ].Red,
+                        image->g->SColorMap->Colors[ tr_color ].Green,
+                        image->g->SColorMap->Colors[ tr_color ].Blue,
+                        moy, moy, moy ) ;
+#endif
+
+                for ( k = 0 ; k < n_colors ; k++ )
+                {
+                    if ( 
+                            moy == colormap[k].Red
+                            &&
+                            moy == colormap[k].Green
+                            &&
+                            moy == colormap[k].Blue
+                       )
+                    {
+                        found = k ;
+                    }
+                }
+                if ( found == -1  ) 
+                {
+                    if ( n_colors >= 256 ) 
+                    {
+                        fprintf( stderr, 
+                                "Error: Found too many colors inside the image\n"
+                               ) ;
+                        return 0 ;
+                    }
+
+#if SOBELF_DEBUG
+                    printf( "[DEBUG]\tNew color %d\n",
+                            n_colors ) ;
+#endif
+
+                    colormap[n_colors].Red = moy ;
+                    colormap[n_colors].Green = moy ;
+                    colormap[n_colors].Blue = moy ;
+
+
+                    image->g->ExtensionBlocks[j].Bytes[3] = n_colors ;
+
+                    n_colors++ ;
+                } else
+                {
+#if SOBELF_DEBUG
+                    printf( "[DEBUG]\tFound existing color %d\n",
+                            found ) ;
+#endif
+                    image->g->ExtensionBlocks[j].Bytes[3] = found ;
+                }
+            }
+        }
+    }
+
+    for ( i = 0 ; i < image->n_images ; i++ )
+    {
+        for ( j = 0 ; j < image->g->SavedImages[i].ExtensionBlockCount ; j++ )
+        {
+            int f ;
+
+            f = image->g->SavedImages[i].ExtensionBlocks[j].Function ;
+            if ( f == GRAPHICS_EXT_FUNC_CODE )
+            {
+                int tr_color = image->g->SavedImages[i].ExtensionBlocks[j].Bytes[3] ;
+
+                if ( tr_color >= 0 &&
+                        tr_color < 255 )
+                {
+
+                    int found = -1 ;
+
+                    moy = 
+                        (
+                         image->g->SColorMap->Colors[ tr_color ].Red
+                         +
+                         image->g->SColorMap->Colors[ tr_color ].Green
+                         +
+                         image->g->SColorMap->Colors[ tr_color ].Blue
+                        ) / 3 ;
+                    if ( moy < 0 ) moy = 0 ;
+                    if ( moy > 255 ) moy = 255 ;
+
+#if SOBELF_DEBUG
+                    printf( "[DEBUG] Transparency color image %d (%d,%d,%d) -> (%d,%d,%d)\n",
+                            i,
+                            image->g->SColorMap->Colors[ tr_color ].Red,
+                            image->g->SColorMap->Colors[ tr_color ].Green,
+                            image->g->SColorMap->Colors[ tr_color ].Blue,
+                            moy, moy, moy ) ;
+#endif
+
+                    for ( k = 0 ; k < n_colors ; k++ )
+                    {
+                        if ( 
+                                moy == colormap[k].Red
+                                &&
+                                moy == colormap[k].Green
+                                &&
+                                moy == colormap[k].Blue
+                           )
+                        {
+                            found = k ;
+                        }
+                    }
+                    if ( found == -1  ) 
+                    {
+                        if ( n_colors >= 256 ) 
+                        {
+                            fprintf( stderr, 
+                                    "Error: Found too many colors inside the image\n"
+                                   ) ;
+                            return 0 ;
+                        }
+
+#if SOBELF_DEBUG
+                        printf( "[DEBUG]\tNew color %d\n",
+                                n_colors ) ;
+#endif
+
+                        colormap[n_colors].Red = moy ;
+                        colormap[n_colors].Green = moy ;
+                        colormap[n_colors].Blue = moy ;
+
+
+                        image->g->SavedImages[i].ExtensionBlocks[j].Bytes[3] = n_colors ;
+
+                        n_colors++ ;
+                    } else
+                    {
+#if SOBELF_DEBUG
+                        printf( "[DEBUG]\tFound existing color %d\n",
+                                found ) ;
+#endif
+                        image->g->SavedImages[i].ExtensionBlocks[j].Bytes[3] = found ;
+                    }
+                }
+            }
+        }
+    }
+
+#if SOBELF_DEBUG
+    printf( "[DEBUG] Number of colors after background and transparency: %d\n",
+            n_colors ) ;
+#endif
+
+    p = image->p ;
+
+    /* Find the number of colors inside the image */
+    for ( i = 0 ; i < image->n_images ; i++ )
+    {
+
+#if SOBELF_DEBUG
+        printf( "OUTPUT: Processing image %d (total of %d images) -> %d x %d\n",
+                i, image->n_images, image->width[i], image->height[i] ) ;
+#endif
+
+        for ( j = 0 ; j < image->width[i] * image->height[i] ; j++ ) 
+        {
+            int found = 0 ;
+            for ( k = 0 ; k < n_colors ; k++ )
+            {
+                if ( p[i][j].r == colormap[k].Red &&
+                        p[i][j].g == colormap[k].Green &&
+                        p[i][j].b == colormap[k].Blue )
+                {
+                    found = 1 ;
+                }
+            }
+
+            if ( found == 0 ) 
+            {
+                if ( n_colors >= 256 ) 
+                {
+                    fprintf( stderr, 
+                            "Error: Found too many colors inside the image\n"
+                           ) ;
+                    return 0 ;
+                }
+
+#if SOBELF_DEBUG
+                printf( "[DEBUG] Found new %d color (%d,%d,%d)\n",
+                        n_colors, p[i][j].r, p[i][j].g, p[i][j].b ) ;
+#endif
+
+                colormap[n_colors].Red = p[i][j].r ;
+                colormap[n_colors].Green = p[i][j].g ;
+                colormap[n_colors].Blue = p[i][j].b ;
+                n_colors++ ;
+            }
+        }
+    }
+
+#if SOBELF_DEBUG
+    printf( "OUTPUT: found %d color(s)\n", n_colors ) ;
+#endif
+
+
+    /* Round up to a power of 2 */
+    if ( n_colors != (1 << GifBitSize(n_colors) ) )
+    {
+        n_colors = (1 << GifBitSize(n_colors) ) ;
+    }
+
+#if SOBELF_DEBUG
+    printf( "OUTPUT: Rounding up to %d color(s)\n", n_colors ) ;
+#endif
+
+    /* Change the color map inside the animated gif */
+    ColorMapObject * cmo ;
+
+    cmo = GifMakeMapObject( n_colors, colormap ) ;
+    if ( cmo == NULL )
+    {
+        fprintf( stderr, "Error while creating a ColorMapObject w/ %d color(s)\n",
+                n_colors ) ;
+        return 0 ;
+    }
+
+    image->g->SColorMap = cmo ;
+
+    /* Update the raster bits according to color map */
+    for ( i = 0 ; i < image->n_images ; i++ )
+    {
+        for ( j = 0 ; j < image->width[i] * image->height[i] ; j++ ) 
+        {
+            int found_index = -1 ;
+            for ( k = 0 ; k < n_colors ; k++ ) 
+            {
+                if ( p[i][j].r == image->g->SColorMap->Colors[k].Red &&
+                        p[i][j].g == image->g->SColorMap->Colors[k].Green &&
+                        p[i][j].b == image->g->SColorMap->Colors[k].Blue )
+                {
+                    found_index = k ;
+                }
+            }
+
+            if ( found_index == -1 ) 
+            {
+                fprintf( stderr,
+                        "Error: Unable to find a pixel in the color map\n" ) ;
+                return 0 ;
+            }
+
+            image->g->SavedImages[i].RasterBits[j] = found_index ;
+        }
+    }
+
+
+    /* Write the final image */
+    if ( !output_modified_read_gif( filename, image->g ) ) { return 0 ; }
+
+    return 1 ;
+}
 
 void apply_gray_filter_one_img(int width, int height, pixel *p)
 {
@@ -258,6 +593,9 @@ void apply_gray_filter_one_img(int width, int height, pixel *p)
 
 #define CONV(l,c,nb_c) \
     (l)*(nb_c)+(c)
+
+#define CONV_COL(l,c,nb_l) \
+    (c)*(nb_l)+(l) 
 
 
 int apply_blur_filter( int width, int height, pixel *p, int size, int threshold, int *pixel_iterated)
@@ -463,8 +801,68 @@ void apply_sobel_filter_one_img(int width, int height, pixel *p)
 
 }
 
-int conv(int i, int j, int width){
-    return i*width + j;
+void apply_sobel_filter_one_img_col(int width, int height, pixel *p)
+{
+    int j, k ;
+
+    pixel * sobel ;
+    sobel = (pixel *)malloc(width * height * sizeof( pixel ) ) ;
+
+    for(j=1; j<height-1; j++)
+    {
+        for(k=1; k<width-1; k++)
+        {
+            int pixel_blue_no, pixel_blue_n, pixel_blue_ne;
+            int pixel_blue_so, pixel_blue_s, pixel_blue_se;
+            int pixel_blue_o /*, pixel_blue*/  , pixel_blue_e ;
+
+            float deltaX_blue ;
+            float deltaY_blue ;
+            float val_blue;
+
+            pixel_blue_no = p[CONV_COL(j-1,k-1,height)].b ;
+            pixel_blue_n  = p[CONV_COL(j-1,k  ,height)].b ;
+            pixel_blue_ne = p[CONV_COL(j-1,k+1,height)].b ;
+            pixel_blue_so = p[CONV_COL(j+1,k-1,height)].b ;
+            pixel_blue_s  = p[CONV_COL(j+1,k  ,height)].b ;
+            pixel_blue_se = p[CONV_COL(j+1,k+1,height)].b ;
+            pixel_blue_o  = p[CONV_COL(j  ,k-1,height)].b ;
+            // pixel_blue    = p[CONV_COL(j  ,k  ,height)].b ;
+            pixel_blue_e  = p[CONV_COL(j  ,k+1,height)].b ;
+
+            deltaX_blue = -pixel_blue_no + pixel_blue_ne - 2*pixel_blue_o + 2*pixel_blue_e - pixel_blue_so + pixel_blue_se;             
+
+            deltaY_blue = pixel_blue_se + 2*pixel_blue_s + pixel_blue_so - pixel_blue_ne - 2*pixel_blue_n - pixel_blue_no;
+
+            val_blue = sqrt(deltaX_blue * deltaX_blue + deltaY_blue * deltaY_blue)/4;
+
+
+            if ( val_blue > 50 ) 
+            {
+                sobel[CONV_COL(j  ,k  ,height)].r = 255 ;
+                sobel[CONV_COL(j  ,k  ,height)].g = 255 ;
+                sobel[CONV_COL(j  ,k  ,height)].b = 255 ;
+            } else
+            {
+                sobel[CONV_COL(j  ,k  ,height)].r = 0 ;
+                sobel[CONV_COL(j  ,k  ,height)].g = 0 ;
+                sobel[CONV_COL(j  ,k  ,height)].b = 0 ;
+            }
+        }
+    }
+
+    for(j=1; j<height-1; j++)
+    {
+        for(k=1; k<width-1; k++)
+        {
+            p[CONV_COL(j  ,k  ,height)].r = sobel[CONV_COL(j  ,k  ,height)].r ;
+            p[CONV_COL(j  ,k  ,height)].g = sobel[CONV_COL(j  ,k  ,height)].g ;
+            p[CONV_COL(j  ,k  ,height)].b = sobel[CONV_COL(j  ,k  ,height)].b ;
+        }
+    }
+
+    free (sobel) ;
+
 }
 
 /****************************************************************************************************************************************************/
@@ -524,9 +922,9 @@ int test_rotation( int argc, char **argv )
             gettimeofday(&t1, NULL);
             for(i=0; i<height; i++){
                 for(j=0; j<width; j++){
-                    fake_pixels[conv(i, j, width)].r = lrand48()%255;
-                    fake_pixels[conv(i, j, width)].g = lrand48()%255;
-                    fake_pixels[conv(i, j, width)].b = lrand48()%255;
+                    fake_pixels[CONV(i, j, width)].r = lrand48()%255;
+                    fake_pixels[CONV(i, j, width)].g = lrand48()%255;
+                    fake_pixels[CONV(i, j, width)].b = lrand48()%255;
                 }
             }
             gettimeofday(&t2, NULL);
@@ -541,9 +939,9 @@ int test_rotation( int argc, char **argv )
                 for(j=0; j<width; j++){
                     new_i = width - 1 - j;
                     new_j = i;
-                    pixels_rotated[conv(i, j, width)].r = fake_pixels[conv(new_i, new_j, height)].r;
-                    pixels_rotated[conv(i, j, width)].g = fake_pixels[conv(new_i, new_j, height)].g;
-                    pixels_rotated[conv(i, j, width)].b = fake_pixels[conv(new_i, new_j, height)].b;
+                    pixels_rotated[CONV(i, j, width)].r = fake_pixels[CONV(new_i, new_j, height)].r;
+                    pixels_rotated[CONV(i, j, width)].g = fake_pixels[CONV(new_i, new_j, height)].g;
+                    pixels_rotated[CONV(i, j, width)].b = fake_pixels[CONV(new_i, new_j, height)].b;
                 }
             }
             gettimeofday(&t2, NULL);
@@ -859,11 +1257,15 @@ void fill_info_part_for_one_image(img_info * info_array,int n_parts, int n_img, 
     int k;
     for (k = 0; k < n_parts; k++){
         // GENERAL INFOS
-        info_array[k].width = width;
         info_array[k].height = height;
         info_array[k].order = n_img*n_parts + k;
         info_array[k].order_sub_img = k;
         info_array[k].image = n_img;
+
+        // OTHER PROCESS INFO
+        info_array[k].rank = k;
+        info_array[k].rank_left = k-1;
+        info_array[k].rank_right = k+1;
 
         // GHOST PROPERTIES
         int ghost_right = 5;
@@ -872,18 +1274,16 @@ void fill_info_part_for_one_image(img_info * info_array,int n_parts, int n_img, 
         if (k == n_parts - 1){
             ghost_right = 0;
             n_columns = last_col;
+            info_array[k].rank_right = -1;
         } 
         if (k == 0){
             ghost_left = 0;
+            info_array[k].rank_left = -1;
         }
         info_array[k].ghost_cells_left = ghost_left;
         info_array[k].ghost_cells_right = ghost_right;
         info_array[k].n_columns = n_columns;
-
-        // OTHER PROCESS INFO
-        info_array[k].rank = k;
-        info_array[k].rank_left = k-1;
-        info_array[k].rank_right = k+1;
+        info_array[k].width = info_array[k].ghost_cells_left + info_array[k].n_columns + info_array[k].ghost_cells_right;
     }
 }
 
@@ -1024,9 +1424,7 @@ void test_cast_column(int argc, char ** argv){
 }
 
 
-// FIRST TESTS ON ONE IMAGE
-#define CONV_COL(l,c,nb_l) \
-    (c)*(nb_l)+(l) 
+
 
 int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, int threshold )
 {
@@ -1172,44 +1570,48 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){
     pixel_middle = pixel_ghost_left + info_recv.ghost_cells_left * height_recv;
     pixel_ghost_right = pixel_middle + info_recv.n_columns * height_recv;
     n_int_recv = width_recv * height_recv * sizeof(pixel) / sizeof(int);
+    n_int_ghost_cells = SIZE_STENCIL * height_recv * sizeof(pixel) / sizeof(int);
 
-    sleep(info_recv.order_sub_img);
-
-
-    // print_array(pixel_ghost_left, info_recv.ghost_cells_left * height_recv, height_recv, "LEFT");
-    // print_array(pixel_middle, info_recv.n_columns * height_recv, height_recv, "MIDDLE");
-    // print_array(pixel_ghost_right, info_recv.ghost_cells_right * height_recv, height_recv, "RIGHT");
+    // sleep(info_recv.order_sub_img);
+    int global_rank, local_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &global_rank);
+    MPI_Comm_rank(local_comm, &local_rank);
+    // printf("global : %d    local : %d    rank_left : %d     rank_right : %d\n", global_rank, local_rank, info_recv.rank_left, info_recv.rank_right);
 
     apply_gray_filter_one_img(width_recv, height_recv, pixel_recv);
-    // do{
-    // end_local = apply_blur_filter_one_iter_col(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20);
-    // MPI_Allreduce(&end_local, &end_global, 1, MPI_INT, MPI_SUM, local_comm);
+    do{
+        printf("ITERATION #%d\n", local_rank);
+        end_local = apply_blur_filter_one_iter_col(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20);
+        MPI_Allreduce(&end_local, &end_global, 1, MPI_INT, MPI_LOR, local_comm);
     
-
-    //     if( !end_global ){
-    //         // Send left ghost cells, receive rigth ghost cells
-    //         if( rank_left != -1 )
-    //             MPI_Send(ghost_left, n_int_ghost_cells, MPI_INT, rank_left, 0, local_comm);
-    //         if( rank_right != -1 )
-    //             MPI_Recv(ghost_right, n_int_ghost_cells, MPI_INT, rank_right, MPI_ANY_TAG, local_comm, &status_right);
+        if( !end_global ){
+            // Send left ghost cells, receive rigth ghost cells
+            if( rank_left != -1 )
+                MPI_Send(pixel_ghost_left, n_int_ghost_cells, MPI_INT, rank_left, 0, local_comm);
+            if( rank_right != -1 )
+                MPI_Recv(pixel_ghost_right, n_int_ghost_cells, MPI_INT, rank_right, MPI_ANY_TAG, local_comm, &status_right);
             
-    //         // Send right ghost cells, receive left ghost cells  
-    //         if( rank_right != -1 )
-    //             MPI_Send(ghost_right, n_int_ghost_cells, MPI_INT, rank_right, 0, local_comm);
-    //         if( rank_left != -1 )
-    //             MPI_Recv(ghost_left, n_int_ghost_cells, MPI_INT, rank_left, MPI_ANY_TAG, local_comm, &status_left);
-    //     }
+            // Send right ghost cells, receive left ghost cells  
+            if( rank_right != -1 )
+                MPI_Send(pixel_ghost_right, n_int_ghost_cells, MPI_INT, rank_right, 0, local_comm);
+            if( rank_left != -1 )
+                MPI_Recv(pixel_ghost_left, n_int_ghost_cells, MPI_INT, rank_left, MPI_ANY_TAG, local_comm, &status_left);
+        }
 
-    // } while( !end_global);            
+    } while( !end_global);            
     
-    // apply_sobel_filter_one_img(width_recv, height_recv, pixel_recv);
+    apply_sobel_filter_one_img_col(width_recv, height_recv, pixel_recv);
+}
 
-    // info_recv.ghost_cells_left = 0;
-    // info_recv.ghost_cells_right = 0;
-
-    // // Send back
-    // MPI_Send(info_recv, n_int_img_info, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
-    // MPI_Send(pixel_recv, n_int_rcvd, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
+int is_grey(int width, int height, pixel* p){
+    int i;
+    pixel current;
+    for(i = 0; i <  width * height; i++){
+        current = p[i];
+        if(current.r != current.b || current.r != current.g || current.b != current.g)
+            return 0;
+    }
+    return 1;
 }
 
 void test_blur_multiple_parts(int argc, char **argv){
@@ -1230,36 +1632,44 @@ void test_blur_multiple_parts(int argc, char **argv){
     int i;
     img_info *parts_info = NULL;
     pixel **parts_pixel = NULL;
+    
+    char *input_filename = "images/original/frame_002.gif";
+    char *output_filename = "images/res.gif";
+    animated_gif * image ;
 
     if(rank == 0){
-        height = 2;
-        width = 30;
+
+        int n_images;
+        load_image_from_file(&image, &n_images, input_filename);
+
+        height = image->height[0];
+        width = image->width[0];
         n_pixels = height * width;
-        n_parts = 3;
-        pixel *img_pixels = (pixel *)malloc(n_pixels * sizeof(pixel));
+        n_parts = 10;
+        // pixel *img_pixels = (pixel *)malloc(n_pixels * sizeof(pixel));
+        pixel *img_pixels = image->p[0];
 
         parts_info = (img_info *)malloc(n_parts * sizeof(img_info));
         parts_pixel = (pixel **)malloc(n_parts * sizeof(pixel *));
 
         // Init array
-        for(i=0; i<n_pixels; i++){
-            img_pixels[i].r = i;
-            img_pixels[i].g = i;
-            img_pixels[i].b = i;
-        }
+        // srand48(3);
+        // for(i=0; i<n_pixels; i++){
+        //     img_pixels[i].r = lrand48()%256;
+        //     img_pixels[i].g = lrand48()%256;
+        //     img_pixels[i].b = lrand48()%256;
+        // }
 
+        // Fill_info_parts and pixel columns
         fill_info_part_for_one_image(parts_info, n_parts, 1, width, height);
         fill_pixel_column_pointers_for_one_image(parts_pixel, img_pixels, n_parts, parts_info);
 
-        print_array(img_pixels, n_pixels, width, "INITIAL");
+        // print_array(img_pixels, n_pixels, width, "INITIAL");
 
     }
     MPI_Bcast(&n_parts, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Comm_split(MPI_COMM_WORLD, rank/n_parts, rank, &local_comm);
 
-    int hello = rank;
-    MPI_Bcast(&hello, 1, MPI_INT, 0, local_comm);
-    printf("%d - %d\n", rank, hello);
     if(rank == 0){
         MPI_Datatype COLUMN = create_column(width, height);
 
@@ -1273,15 +1683,62 @@ void test_blur_multiple_parts(int argc, char **argv){
             MPI_Send(&(parts_info[i]), n_int_img_info, MPI_INT, rank_dest, 0, MPI_COMM_WORLD);
             MPI_Send(beg_pixel, n_total_columns, COLUMN, rank_dest, 0, MPI_COMM_WORLD);
         }
+
         MPI_Status status;
+        MPI_Request req;
         beg_pixel = parts_pixel[0] - parts_info[0].ghost_cells_left;
         n_total_columns = parts_info[0].ghost_cells_left + parts_info[0].n_columns + parts_info[0].ghost_cells_right;
-        MPI_Bsend(beg_pixel, n_total_columns, COLUMN, 0, 0, MPI_COMM_SELF);
+        MPI_Isend(beg_pixel, n_total_columns, COLUMN, 0, 0, MPI_COMM_SELF, &req);
 
         int n_pixels_recv = n_total_columns * height;
         pixel *pixel_recv = (pixel *)malloc( n_pixels_recv * sizeof(pixel) );
         MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
         call_worker(local_comm, parts_info[0], pixel_recv);
+        int n_pixels_to_send = parts_info[0].n_columns * parts_info[0].height;
+        pixel* pixel_middle = pixel_recv; // No ghost_left
+        int part_num = parts_info[0].order_sub_img;
+        MPI_Isend(pixel_middle, n_pixels_to_send * 3, MPI_INT, 0, status.MPI_TAG, MPI_COMM_SELF, &req);
+        
+        MPI_Recv(parts_pixel[part_num], parts_info[part_num].n_columns, COLUMN, 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
+
+        img_info info_recv;
+        int part_number;
+        for(i=1; i<n_parts; i++){
+            MPI_Recv(&info_recv, n_int_img_info, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            part_number = info_recv.order_sub_img;
+            beg_pixel = parts_pixel[part_number];
+            n_total_columns = parts_info[part_number].n_columns;
+            MPI_Recv(beg_pixel, n_total_columns, COLUMN, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
+        }
+
+
+        // printf("______________________YEAH\n");
+        // int j;
+        // int r, g, b;
+        // for(i = 0; i < image->width[0] * image->height[0]; i++){
+        //     r = image->p[0][i].r;
+        //     g = image->p[0][i].g;
+        //     b = image->p[0][i].b;
+
+        //     if(r != g || r != b || b != g){
+        //         image->p[0][i].r = 0;
+        //         image->p[0][i].g = 0;
+        //         image->p[0][i].b = 0;
+        //     }
+        //     else{
+        //         if(r!=255 && r!=0){
+        //             image->p[0][i].r = 0;
+        //             image->p[0][i].g = 0;
+        //             image->p[0][i].b = 0;
+        //         }
+        //     }
+        
+        // }
+        printf("______________________YEAH\n");
+
+        if ( !store_pixels( output_filename, image ) ) { return 1 ; }
+        printf("______________________YEAH\n");
+
     }
     else {
         MPI_Status status;
@@ -1290,9 +1747,8 @@ void test_blur_multiple_parts(int argc, char **argv){
         img_info info_recv;
         pixel *pixel_recv;
 
-
         while(1){
-         // Check what is sent
+            // Check what is sent
             MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
             MPI_Get_count(&status, MPI_INT, &n_int_recv);
             if(n_int_recv == 1) // Signal for stop
@@ -1307,10 +1763,18 @@ void test_blur_multiple_parts(int argc, char **argv){
             MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
 
             call_worker(local_comm, info_recv, pixel_recv);
+
+            // Send back
+            pixel *pixel_middle = pixel_recv + info_recv.ghost_cells_left * info_recv.height;
+            int n_pixels_to_send = info_recv.n_columns * info_recv.height;
+            MPI_Send(&info_recv, n_int_img_info, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
+            MPI_Send(pixel_middle, n_pixels_to_send * 3, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
+            free(pixel_recv);
             break;
         }
     }
     MPI_Finalize();
+    return 0;
 }
 
 /****************************************************************************************************************************************************/
