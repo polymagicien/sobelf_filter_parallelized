@@ -1982,8 +1982,8 @@ void test_working(int argc, char **argv){
     struct timeval t1, t2;
 
     
-    char *input_filename = "images/original/9815573.gif";
-    char *output_filename = "images/res9.gif";
+    char *input_filename = "images/original/adobe.gif";
+    char *output_filename = "images/res11.gif";
     animated_gif * image ;
 
     // CHOOSING THE CUTTING STRATEGIE
