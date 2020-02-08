@@ -1296,10 +1296,12 @@ void fill_pixel_column_pointers_for_one_image(pixel* pixel_array[], pixel *img_p
     }
 }
 
-void get_parts(img_info * info_array[], pixel* pixel_array[], MPI_Datatype datatypes[], animated_gif image, int n_parts_by_image){
+void get_parts(img_info * info_array[], pixel* pixel_array[], MPI_Datatype datatypes[], animated_gif * img, int n_parts_by_image, int n_images){
 
+    animated_gif image = *img;
     int i;
-    for (i = 0; i < image.n_images; i++){
+    pixel **head = pixel_array;
+    for (i = 0; i < n_images; i++){
 
          // FILL DATATYPE : Create this image's column datatype (handling different heights)
         datatypes[i] = create_column(image.width[i], image.height[i]);
@@ -1308,20 +1310,20 @@ void get_parts(img_info * info_array[], pixel* pixel_array[], MPI_Datatype datat
         fill_info_part_for_one_image(info_array[i], n_parts_by_image, i, image.width[i], image.height[i]);
 
         // FILL PIXEL ARRAY : 
-        fill_pixel_column_pointers_for_one_image( pixel_array, image.p[i], n_parts_by_image, info_array[i] );
-
+        fill_pixel_column_pointers_for_one_image( head, image.p[i], n_parts_by_image, info_array[i] );
+        head += n_parts_by_image;
     }
 }
 
 /****************************************************************************************************************************************************/
 
 // TEST CREATE FUNCTIONS
-animated_gif create_gif(int n){
+animated_gif create_gif(int n, int w, int h){
 
     animated_gif image;
     int i;
-    int width = 8;
-    int height = 2;
+    int width = w;
+    int height = h;
 
     image.n_images = n;
     image.width = (int*)malloc(n*sizeof(int));
@@ -1367,7 +1369,7 @@ void test_get_parts(int argc, char ** argv){
         int n_parts_per_image = 4;
         //int n_img_per_round = 1;
 
-        animated_gif image = create_gif(n_images);
+        animated_gif image = create_gif(n_images, 1, 1);
 
         int i;
 
@@ -1382,7 +1384,7 @@ void test_get_parts(int argc, char ** argv){
         MPI_Datatype *datatypes = ( MPI_Datatype * )malloc( n_images * sizeof( MPI_Datatype ) ); // table of datatypes: datatypes[n_image]
 
         printf("Will process get_parts");
-        get_parts( infos_parts, pixels_parts, datatypes,image, n_parts_per_image);
+        get_parts( infos_parts, pixels_parts, datatypes,&image, n_parts_per_image, n_images);
 
 
 
@@ -1580,11 +1582,12 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){
 
     apply_gray_filter_one_img(width_recv, height_recv, pixel_recv);
     do{
-        printf("ITERATION #%d\n", local_rank);
+        //printf("ITERATION #%d\n", local_rank);
         end_local = apply_blur_filter_one_iter_col(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20);
         MPI_Allreduce(&end_local, &end_global, 1, MPI_INT, MPI_LOR, local_comm);
     
         if( !end_global ){
+            printf("Calling send in blur with rank %d and %d\n", rank_left, rank_right );
             // Send left ghost cells, receive rigth ghost cells
             if( rank_left != -1 )
                 MPI_Send(pixel_ghost_left, n_int_ghost_cells, MPI_INT, rank_left, 0, local_comm);
@@ -1624,7 +1627,7 @@ void test_blur_multiple_parts(int argc, char **argv){
     MPI_Comm_size(MPI_COMM_WORLD, &n_process);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     
-
+    // FIRST ALLOCATIONS
     int n_int_img_info = sizeof(img_info) / sizeof(int);
     int n_parts;
     MPI_Comm local_comm;
@@ -1634,13 +1637,15 @@ void test_blur_multiple_parts(int argc, char **argv){
     pixel **parts_pixel = NULL;
     
     char *input_filename = "images/original/frame_002.gif";
-    char *output_filename = "images/res.gif";
+    char *output_filename = "images/res1.gif";
     animated_gif * image ;
 
+    // CHOOSING THE CUTTING STRATEGIE
     if(rank == 0){
 
         int n_images;
         load_image_from_file(&image, &n_images, input_filename);
+
 
         height = image->height[0];
         width = image->width[0];
@@ -1649,16 +1654,15 @@ void test_blur_multiple_parts(int argc, char **argv){
         // pixel *img_pixels = (pixel *)malloc(n_pixels * sizeof(pixel));
         pixel *img_pixels = image->p[0];
 
+        // //cheat the image
+        // for (i=0; i<n_pixels/2; i++){
+        //     pixel p = img_pixels[i];
+        //     img_pixels[i] = img_pixels[n_pixels-1-i];
+        //     img_pixels[n_pixels-1-i] = p;
+        // }
+
         parts_info = (img_info *)malloc(n_parts * sizeof(img_info));
         parts_pixel = (pixel **)malloc(n_parts * sizeof(pixel *));
-
-        // Init array
-        // srand48(3);
-        // for(i=0; i<n_pixels; i++){
-        //     img_pixels[i].r = lrand48()%256;
-        //     img_pixels[i].g = lrand48()%256;
-        //     img_pixels[i].b = lrand48()%256;
-        // }
 
         // Fill_info_parts and pixel columns
         fill_info_part_for_one_image(parts_info, n_parts, 1, width, height);
@@ -1667,12 +1671,18 @@ void test_blur_multiple_parts(int argc, char **argv){
         // print_array(img_pixels, n_pixels, width, "INITIAL");
 
     }
+
+    // CREATING ALL THE DIFFERENT COMMUNICATORS
     MPI_Bcast(&n_parts, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Comm_split(MPI_COMM_WORLD, rank/n_parts, rank, &local_comm);
 
     if(rank == 0){
         MPI_Datatype COLUMN = create_column(width, height);
 
+        printf("_____START SENDING PARTS\n");
+
+
+        // SENDING THE IMAGE IN PARTS
         pixel *beg_pixel;
         int n_total_columns;
         int rank_dest;
@@ -1684,6 +1694,7 @@ void test_blur_multiple_parts(int argc, char **argv){
             MPI_Send(beg_pixel, n_total_columns, COLUMN, rank_dest, 0, MPI_COMM_WORLD);
         }
 
+        // DOING THE ROOT'S PART OF THE JOB
         MPI_Status status;
         MPI_Request req;
         beg_pixel = parts_pixel[0] - parts_info[0].ghost_cells_left;
@@ -1701,6 +1712,8 @@ void test_blur_multiple_parts(int argc, char **argv){
         
         MPI_Recv(parts_pixel[part_num], parts_info[part_num].n_columns, COLUMN, 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
 
+
+        // RECEIVING THE PARTS 
         img_info info_recv;
         int part_number;
         for(i=1; i<n_parts; i++){
@@ -1711,33 +1724,10 @@ void test_blur_multiple_parts(int argc, char **argv){
             MPI_Recv(beg_pixel, n_total_columns, COLUMN, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
         }
 
-
-        // printf("______________________YEAH\n");
-        // int j;
-        // int r, g, b;
-        // for(i = 0; i < image->width[0] * image->height[0]; i++){
-        //     r = image->p[0][i].r;
-        //     g = image->p[0][i].g;
-        //     b = image->p[0][i].b;
-
-        //     if(r != g || r != b || b != g){
-        //         image->p[0][i].r = 0;
-        //         image->p[0][i].g = 0;
-        //         image->p[0][i].b = 0;
-        //     }
-        //     else{
-        //         if(r!=255 && r!=0){
-        //             image->p[0][i].r = 0;
-        //             image->p[0][i].g = 0;
-        //             image->p[0][i].b = 0;
-        //         }
-        //     }
-        
-        // }
-        printf("______________________YEAH\n");
-
+        // EXPORTING THE IMAGE
+        printf("_____FINISHED PROCESSING\n");
         if ( !store_pixels( output_filename, image ) ) { return 1 ; }
-        printf("______________________YEAH\n");
+        printf("_____EXPORTED\n");
 
     }
     else {
@@ -1764,6 +1754,170 @@ void test_blur_multiple_parts(int argc, char **argv){
 
             call_worker(local_comm, info_recv, pixel_recv);
 
+            // Send back
+            pixel *pixel_middle = pixel_recv + info_recv.ghost_cells_left * info_recv.height;
+            int n_pixels_to_send = info_recv.n_columns * info_recv.height;
+            MPI_Send(&info_recv, n_int_img_info, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
+            MPI_Send(pixel_middle, n_pixels_to_send * 3, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
+            free(pixel_recv);
+            break;
+        }
+    }
+    MPI_Finalize();
+    return 0;
+}
+
+void test_blur_multiple_parts_multiple_image(int argc, char **argv){
+    /*
+        n_process >= 2
+    */
+    // MPI_INIT
+    int n_process, rank;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &n_process);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    
+    // FIRST ALLOCATIONS
+    int n_int_img_info = sizeof(img_info) / sizeof(int);
+    int n_parts, n_images;
+    MPI_Comm local_comm;
+    int height, width, n_pixels;
+    int i;
+    img_info **parts_info = NULL;
+    pixel **parts_pixel = NULL;
+    MPI_Datatype *COLUMNS = NULL;
+
+    
+    char *input_filename = "images/original/Mandelbrot-large.gif";
+    char *output_filename = "images/res6.gif";
+    animated_gif * image ;
+
+    // CHOOSING THE CUTTING STRATEGIE
+    if(rank == 0){
+
+        load_image_from_file(&image, &n_images, input_filename);
+        
+        n_images = 20;
+
+        n_parts = 10;
+        // pixel *img_pixels = (pixel *)malloc(n_pixels * sizeof(pixel));
+        pixel *img_pixels = image->p[0];
+
+
+        parts_info = (img_info **)malloc(n_images* sizeof(img_info*));
+        for(i = 0; i < n_images; i++)
+            parts_info[i] = (img_info *)malloc(n_parts * sizeof(img_info));
+        parts_pixel = (pixel **)malloc(n_parts * n_images * sizeof(pixel *));
+        COLUMNS = (MPI_Datatype*)malloc(n_images * sizeof(MPI_Datatype));
+
+        // Fill_info_parts and pixel columns
+        get_parts(parts_info,parts_pixel,COLUMNS,image,n_parts, n_images);
+
+        printf("_____INITIALIZATION FINISHED\n");
+        // print_array(img_pixels, n_pixels, width, "INITIAL");
+
+    }
+
+
+
+    // CREATING ALL THE DIFFERENT COMMUNICATORS
+    MPI_Bcast(&n_parts, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Comm_split(MPI_COMM_WORLD, rank/n_parts, rank, &local_comm);
+
+    if(rank == 0){
+
+        printf("_____START SENDING PARTS\n");
+
+        int j;
+        // SENDING THE IMAGE IN PARTS
+        pixel *beg_pixel;
+        int n_total_columns;
+        int rank_dest;
+        for (j=0; j < n_images; j++){
+            int begin = (j == 0) ? 1 : 0;
+            for(i=begin; i<n_parts; i++){
+                int part_n = j * n_parts + i;
+
+                beg_pixel = parts_pixel[part_n] - parts_info[j][i].ghost_cells_left;
+                //printf("The pixel in part is: %d\n", beg_pixel->b);
+                n_total_columns = parts_info[j][i].ghost_cells_left + parts_info[j][i].n_columns + parts_info[j][i].ghost_cells_right;
+                rank_dest = part_n;
+                MPI_Send(&(parts_info[j][i]), n_int_img_info, MPI_INT, part_n, 0, MPI_COMM_WORLD);
+                printf("Part %d of img %d info has been sent (part global number %d)\n", i,j, part_n);
+                MPI_Send(beg_pixel, n_total_columns, COLUMNS[j], part_n, 0, MPI_COMM_WORLD);
+                printf("Part %d of img %d has been sent\n", i,j);
+            }
+        }
+        printf("_____PARTS SENT\n");
+
+        // DOING THE ROOT'S PART OF THE JOB
+        MPI_Status status;
+        MPI_Request req;
+        beg_pixel = parts_pixel[0] - parts_info[0][0].ghost_cells_left;
+        n_total_columns = parts_info[0][0].ghost_cells_left + parts_info[0][0].n_columns + parts_info[0][0].ghost_cells_right;
+        MPI_Isend(beg_pixel, n_total_columns, COLUMNS[0], 0, 0, MPI_COMM_SELF, &req);
+
+        int n_pixels_recv = n_total_columns * parts_info[0][0].height;
+        pixel *pixel_recv = (pixel *)malloc( n_pixels_recv * sizeof(pixel) );
+        MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
+        call_worker(local_comm, parts_info[0][0], pixel_recv);
+        int n_pixels_to_send = parts_info[0][0].n_columns * parts_info[0][0].height;
+        pixel* pixel_middle = pixel_recv; // No ghost_left
+        int part_num = parts_info[0][0].order_sub_img;
+        MPI_Isend(pixel_middle, n_pixels_to_send * 3, MPI_INT, 0, status.MPI_TAG, MPI_COMM_SELF, &req);
+        
+        MPI_Recv(parts_pixel[part_num], parts_info[0][part_num].n_columns, COLUMNS[0], 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
+
+
+        printf("_____ROOT FINISHED ITS JOB\n");
+
+        // RECEIVING THE PARTS 
+        img_info info_recv;
+        for (j=0; j < n_images; j++){
+            int begin = (j == 0) ? 1 : 0;
+            for(i=begin; i<n_parts; i++){
+                
+                int part_number;
+
+                MPI_Recv(&info_recv, n_int_img_info, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+                part_number = info_recv.order;
+                beg_pixel = parts_pixel[part_number];
+                n_total_columns = info_recv.n_columns;
+                MPI_Recv(beg_pixel, n_total_columns, COLUMNS[info_recv.image], status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
+            }
+        }
+
+        // EXPORTING THE IMAGE
+        printf("_____FINISHED RECEIVING\n");
+        if ( !store_pixels( output_filename, image ) ) { return 1 ; }
+        printf("_____EXPORTED\n");
+
+    }
+    else {
+        MPI_Status status;
+        int n_int_recv;
+
+        img_info info_recv;
+        pixel *pixel_recv;
+
+        while(1){
+            // Check what is sent
+            MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            MPI_Get_count(&status, MPI_INT, &n_int_recv);
+            if(n_int_recv == 1) // Signal for stop
+                break;
+
+            // Receive header
+            MPI_Recv(&info_recv, n_int_img_info, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
+            int n_pixels_recv = info_recv.height *(info_recv.ghost_cells_left + info_recv.n_columns + info_recv.ghost_cells_right);
+
+            // Alloc and receive data
+            pixel_recv = (pixel *)malloc( n_pixels_recv * sizeof(pixel) );
+            MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
+
+            printf("work_dobe_start\n");
+            call_worker(local_comm, info_recv, pixel_recv);
+            printf("work_dobe_ended\n");
             // Send back
             pixel *pixel_middle = pixel_recv + info_recv.ghost_cells_left * info_recv.height;
             int n_pixels_to_send = info_recv.n_columns * info_recv.height;
@@ -1810,6 +1964,9 @@ int main( int argc, char ** argv )
             break;
         case 7:
             test_blur_multiple_parts(argc-1, argv+1);
+            break;
+        case 8:
+            test_blur_multiple_parts_multiple_image(argc-1, argv+1);
             break;
         default:
             printf("Wrong argument\n");
