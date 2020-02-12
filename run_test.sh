@@ -41,7 +41,7 @@ then
 
     INPUT_DIR=images/original
     OUTPUT_DIR=images/processed
-    PERFORMANCE_FILE="performance/on_processes/${2}_n_${NODE}.txt"
+    PERFORMANCE_FILE="performance/on_processes/${2}_N_${NODE}.txt"
     mkdir $OUTPUT_DIR 2>/dev/null
     touch $PERFORMANCE_FILE
     rm $PERFORMANCE_FILE
