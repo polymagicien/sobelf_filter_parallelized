@@ -578,16 +578,22 @@ int store_pixels( char * filename, animated_gif * image )
 void apply_gray_filter_one_img(int width, int height, pixel *p)
 {
     int j ;
-    for ( j = 0 ; j < width * height; j++ )
+    int end_loop = width * height;
+    #pragma omp parallel default(none) private(j) shared(end_loop,p)
     {
-        int moy ;
-        moy = (p[j].r + p[j].g + p[j].b)/3 ;
-        if ( moy < 0 ) moy = 0 ;
-        if ( moy > 255 ) moy = 255 ;
 
-        p[j].r = moy ;
-        p[j].g = moy ;
-        p[j].b = moy ;
+        #pragma omp for schedule(static,20)
+            for ( j = 0 ; j < end_loop ; j++ )
+            {
+                int moy ;
+                moy = (p[j].r + p[j].g + p[j].b)/3 ;
+                if ( moy < 0 ) moy = 0 ;
+                if ( moy > 255 ) moy = 255 ;
+
+                p[j].r = moy ;
+                p[j].g = moy ;
+                p[j].b = moy ;
+            }
     }
 }
 
@@ -804,61 +810,69 @@ void apply_sobel_filter_one_img(int width, int height, pixel *p)
 void apply_sobel_filter_one_img_col(int width, int height, pixel *p)
 {
     int j, k ;
-
     pixel * sobel ;
     sobel = (pixel *)malloc(width * height * sizeof( pixel ) ) ;
+    int hmu = height - 1;
+    int wmu = width - 1;
 
-    for(j=1; j<height-1; j++)
+    #pragma omp parallel default(none) private(j,k) shared(hmu, wmu, p, sobel, height)
     {
-        for(k=1; k<width-1; k++)
-        {
-            int pixel_blue_no, pixel_blue_n, pixel_blue_ne;
-            int pixel_blue_so, pixel_blue_s, pixel_blue_se;
-            int pixel_blue_o /*, pixel_blue*/  , pixel_blue_e ;
 
-            float deltaX_blue ;
-            float deltaY_blue ;
-            float val_blue;
-
-            pixel_blue_no = p[CONV_COL(j-1,k-1,height)].b ;
-            pixel_blue_n  = p[CONV_COL(j-1,k  ,height)].b ;
-            pixel_blue_ne = p[CONV_COL(j-1,k+1,height)].b ;
-            pixel_blue_so = p[CONV_COL(j+1,k-1,height)].b ;
-            pixel_blue_s  = p[CONV_COL(j+1,k  ,height)].b ;
-            pixel_blue_se = p[CONV_COL(j+1,k+1,height)].b ;
-            pixel_blue_o  = p[CONV_COL(j  ,k-1,height)].b ;
-            // pixel_blue    = p[CONV_COL(j  ,k  ,height)].b ;
-            pixel_blue_e  = p[CONV_COL(j  ,k+1,height)].b ;
-
-            deltaX_blue = -pixel_blue_no + pixel_blue_ne - 2*pixel_blue_o + 2*pixel_blue_e - pixel_blue_so + pixel_blue_se;             
-
-            deltaY_blue = pixel_blue_se + 2*pixel_blue_s + pixel_blue_so - pixel_blue_ne - 2*pixel_blue_n - pixel_blue_no;
-
-            val_blue = sqrt(deltaX_blue * deltaX_blue + deltaY_blue * deltaY_blue)/4;
-
-
-            if ( val_blue > 50 ) 
+        #pragma omp for schedule(static,20)
+            for(j=1; j<hmu; j++)
             {
-                sobel[CONV_COL(j  ,k  ,height)].r = 255 ;
-                sobel[CONV_COL(j  ,k  ,height)].g = 255 ;
-                sobel[CONV_COL(j  ,k  ,height)].b = 255 ;
-            } else
-            {
-                sobel[CONV_COL(j  ,k  ,height)].r = 0 ;
-                sobel[CONV_COL(j  ,k  ,height)].g = 0 ;
-                sobel[CONV_COL(j  ,k  ,height)].b = 0 ;
+                for(k=1; k<wmu; k++)
+                {
+                    int pixel_blue_no, pixel_blue_n, pixel_blue_ne;
+                    int pixel_blue_so, pixel_blue_s, pixel_blue_se;
+                    int pixel_blue_o /*, pixel_blue*/  , pixel_blue_e ;
+
+                    float deltaX_blue ;
+                    float deltaY_blue ;
+                    float val_blue;
+
+                    pixel_blue_no = p[CONV_COL(j-1,k-1,height)].b ;
+                    pixel_blue_n  = p[CONV_COL(j-1,k  ,height)].b ;
+                    pixel_blue_ne = p[CONV_COL(j-1,k+1,height)].b ;
+                    pixel_blue_so = p[CONV_COL(j+1,k-1,height)].b ;
+                    pixel_blue_s  = p[CONV_COL(j+1,k  ,height)].b ;
+                    pixel_blue_se = p[CONV_COL(j+1,k+1,height)].b ;
+                    pixel_blue_o  = p[CONV_COL(j  ,k-1,height)].b ;
+                    // pixel_blue    = p[CONV_COL(j  ,k  ,height)].b ;
+                    pixel_blue_e  = p[CONV_COL(j  ,k+1,height)].b ;
+
+                    deltaX_blue = -pixel_blue_no + pixel_blue_ne - 2*pixel_blue_o + 2*pixel_blue_e - pixel_blue_so + pixel_blue_se;             
+
+                    deltaY_blue = pixel_blue_se + 2*pixel_blue_s + pixel_blue_so - pixel_blue_ne - 2*pixel_blue_n - pixel_blue_no;
+
+                    val_blue = sqrt(deltaX_blue * deltaX_blue + deltaY_blue * deltaY_blue)/4;
+
+
+                    if ( val_blue > 50 ) 
+                    {
+                        sobel[CONV_COL(j  ,k  ,height)].r = 255 ;
+                        sobel[CONV_COL(j  ,k  ,height)].g = 255 ;
+                        sobel[CONV_COL(j  ,k  ,height)].b = 255 ;
+                    } else
+                    {
+                        sobel[CONV_COL(j  ,k  ,height)].r = 0 ;
+                        sobel[CONV_COL(j  ,k  ,height)].g = 0 ;
+                        sobel[CONV_COL(j  ,k  ,height)].b = 0 ;
+                    }
+                }
             }
-        }
-    }
 
-    for(j=1; j<height-1; j++)
-    {
-        for(k=1; k<width-1; k++)
-        {
-            p[CONV_COL(j  ,k  ,height)].r = sobel[CONV_COL(j  ,k  ,height)].r ;
-            p[CONV_COL(j  ,k  ,height)].g = sobel[CONV_COL(j  ,k  ,height)].g ;
-            p[CONV_COL(j  ,k  ,height)].b = sobel[CONV_COL(j  ,k  ,height)].b ;
-        }
+        #pragma omp for schedule(static,20)
+            for(j=1; j<hmu; j++)
+            {
+                for(k=1; k<wmu; k++)
+                {
+                    p[CONV_COL(j  ,k  ,height)].r = sobel[CONV_COL(j  ,k  ,height)].r ;
+                    p[CONV_COL(j  ,k  ,height)].g = sobel[CONV_COL(j  ,k  ,height)].g ;
+                    p[CONV_COL(j  ,k  ,height)].b = sobel[CONV_COL(j  ,k  ,height)].b ;
+                }
+            }
+
     }
 
     free (sobel) ;
@@ -997,112 +1011,136 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
     end = 1 ;
     n_iter++ ;
 
-    // Copy pixels of images in ew 
-    for(j=0; j<height-1; j++)
-    {
-        for(k=0; k<width-1; k++)
-        {
-            new[CONV_COL(j,k,height)].r = p[CONV_COL(j,k,height)].r ;
-            new[CONV_COL(j,k,height)].g = p[CONV_COL(j,k,height)].g ;
-            new[CONV_COL(j,k,height)].b = p[CONV_COL(j,k,height)].b ;
-        }
-    }
+    int end_loop = height*0.9+size;
+    int begin_loop = height/10-size;
+    int end_last_loop = height-size;
+    int end_mid_loop = width-size;
 
-    /* Apply blur on top part of image (10%) */
-    for(j=size; j<height/10-size; j++)
-    {
-        for(k=size; k<width-size; k++)
-        {
-            int stencil_j, stencil_k ;
-            int t_r = 0 ;
-            int t_g = 0 ;
-            int t_b = 0 ;
+    int hmu = height - 1;
+    int wmu = width - 1;
+    int msize = -size;
 
-            for ( stencil_j = -size ; stencil_j <= size ; stencil_j++ )
+
+    #pragma omp parallel default(none) private(j,k) shared(size, begin_loop,p,height,new,end_mid_loop,end_loop,end_last_loop,msize,end, threshold, wmu,hmu)
+    {
+
+        // Copy pixels of images in ew 
+        #pragma omp for schedule(static,20)
+            for(j=0; j<hmu; j++)
             {
-                for ( stencil_k = -size ; stencil_k <= size ; stencil_k++ )
+                for(k=0; k<wmu; k++)
                 {
-                    t_r += p[CONV_COL(j+stencil_j,k+stencil_k,height)].r ;
-                    t_g += p[CONV_COL(j+stencil_j,k+stencil_k,height)].g ;
-                    t_b += p[CONV_COL(j+stencil_j,k+stencil_k,height)].b ;
+                    new[CONV_COL(j,k,height)].r = p[CONV_COL(j,k,height)].r ;
+                    new[CONV_COL(j,k,height)].g = p[CONV_COL(j,k,height)].g ;
+                    new[CONV_COL(j,k,height)].b = p[CONV_COL(j,k,height)].b ;
                 }
             }
 
-            new[CONV_COL(j,k,height)].r = t_r / ( (2*size+1)*(2*size+1) ) ;
-            new[CONV_COL(j,k,height)].g = t_g / ( (2*size+1)*(2*size+1) ) ;
-            new[CONV_COL(j,k,height)].b = t_b / ( (2*size+1)*(2*size+1) ) ;
-        }
-    }
 
-    /* Copy the middle part of the image */
-    for(j=height/10-size; j<height*0.9+size; j++)
-    {
-        for(k=size; k<width-size; k++)
-        {
-            new[CONV_COL(j,k,height)].r = p[CONV_COL(j,k,height)].r ; 
-            new[CONV_COL(j,k,height)].g = p[CONV_COL(j,k,height)].g ; 
-            new[CONV_COL(j,k,height)].b = p[CONV_COL(j,k,height)].b ; 
-        }
-    }
-
-    /* Apply blur on the bottom part of the image (10%) */
-    for(j=height*0.9+size; j<height-size; j++)
-    {
-        for(k=size; k<width-size; k++)
-        {
-            int stencil_j, stencil_k ;
-            int t_r = 0 ;
-            int t_g = 0 ;
-            int t_b = 0 ;
-
-            for ( stencil_j = -size ; stencil_j <= size ; stencil_j++ )
+        #pragma omp for schedule(static,20) 
+            /* Apply blur on top part of image (10%) */
+            for(j=size; j<begin_loop; j++)
             {
-                for ( stencil_k = -size ; stencil_k <= size ; stencil_k++ )
+                for(k=size; k<end_mid_loop; k++)
                 {
-                    t_r += p[CONV_COL(j+stencil_j,k+stencil_k,height)].r ;
-                    t_g += p[CONV_COL(j+stencil_j,k+stencil_k,height)].g ;
-                    t_b += p[CONV_COL(j+stencil_j,k+stencil_k,height)].b ;
+                    int stencil_j, stencil_k ;
+                    int t_r = 0 ;
+                    int t_g = 0 ;
+                    int t_b = 0 ;
+
+                    for ( stencil_j = -size ; stencil_j <= size ; stencil_j++ )
+                    {
+                        for ( stencil_k = -size ; stencil_k <= size ; stencil_k++ )
+                        {
+                            t_r += p[CONV_COL(j+stencil_j,k+stencil_k,height)].r ;
+                            t_g += p[CONV_COL(j+stencil_j,k+stencil_k,height)].g ;
+                            t_b += p[CONV_COL(j+stencil_j,k+stencil_k,height)].b ;
+                        }
+                    }
+
+                    new[CONV_COL(j,k,height)].r = t_r / ( (2*size+1)*(2*size+1) ) ;
+                    new[CONV_COL(j,k,height)].g = t_g / ( (2*size+1)*(2*size+1) ) ;
+                    new[CONV_COL(j,k,height)].b = t_b / ( (2*size+1)*(2*size+1) ) ;
                 }
             }
 
-            new[CONV_COL(j,k,height)].r = t_r / ( (2*size+1)*(2*size+1) ) ;
-            new[CONV_COL(j,k,height)].g = t_g / ( (2*size+1)*(2*size+1) ) ;
-            new[CONV_COL(j,k,height)].b = t_b / ( (2*size+1)*(2*size+1) ) ;
-        }
-    }
 
-    for(j=1; j<height-1; j++)
-    {
-        for(k=1; k<width-1; k++)
-        {
-
-            float diff_r ;
-            float diff_g ;
-            float diff_b ;
-
-            diff_r = (new[CONV_COL(j  ,k  ,height)].r - p[CONV_COL(j  ,k  ,height)].r) ;
-            diff_g = (new[CONV_COL(j  ,k  ,height)].g - p[CONV_COL(j  ,k  ,height)].g) ;
-            diff_b = (new[CONV_COL(j  ,k  ,height)].b - p[CONV_COL(j  ,k  ,height)].b) ;
-
-            if ( diff_r > threshold || -diff_r > threshold 
-                    ||
-                        diff_g > threshold || -diff_g > threshold
-                        ||
-                        diff_b > threshold || -diff_b > threshold
-                ) {
-                end = 0 ;
+        #pragma omp for schedule(static,20)
+            /* Copy the middle part of the image */
+            for(j= begin_loop; j< end_loop; j++)
+            {
+                for(k=size; k<end_mid_loop; k++)
+                {
+                    new[CONV_COL(j,k,height)].r = p[CONV_COL(j,k,height)].r ; 
+                    new[CONV_COL(j,k,height)].g = p[CONV_COL(j,k,height)].g ; 
+                    new[CONV_COL(j,k,height)].b = p[CONV_COL(j,k,height)].b ; 
+                }
             }
 
-            p[CONV_COL(j  ,k  ,height)].r = new[CONV_COL(j  ,k  ,height)].r ;
-            p[CONV_COL(j  ,k  ,height)].g = new[CONV_COL(j  ,k  ,height)].g ;
-            p[CONV_COL(j  ,k  ,height)].b = new[CONV_COL(j  ,k  ,height)].b ;
-        }
+        #pragma omp for schedule(static,20) 
+            /* Apply blur on the bottom part of the image (10%) */
+            for(j=end_loop; j<end_last_loop; j++)
+            {
+                for(k=size; k<end_mid_loop; k++)
+                {
+                    int stencil_j, stencil_k ;
+                    int t_r = 0 ;
+                    int t_g = 0 ;
+                    int t_b = 0 ;
+
+                    for ( stencil_j = msize ; stencil_j <= size ; stencil_j++ )
+                    {
+                        for ( stencil_k = -size ; stencil_k <= size ; stencil_k++ )
+                        {
+                            t_r += p[CONV_COL(j+stencil_j,k+stencil_k,height)].r ;
+                            t_g += p[CONV_COL(j+stencil_j,k+stencil_k,height)].g ;
+                            t_b += p[CONV_COL(j+stencil_j,k+stencil_k,height)].b ;
+                        }
+                    }
+
+                    new[CONV_COL(j,k,height)].r = t_r / ( (2*size+1)*(2*size+1) ) ;
+                    new[CONV_COL(j,k,height)].g = t_g / ( (2*size+1)*(2*size+1) ) ;
+                    new[CONV_COL(j,k,height)].b = t_b / ( (2*size+1)*(2*size+1) ) ;
+                }
+            }
+
+        #pragma omp for schedule(static,20) 
+            for(j=1; j<hmu; j++)
+            {
+                for(k=1; k<wmu; k++)
+                {
+
+                    float diff_r ;
+                    float diff_g ;
+                    float diff_b ;
+
+                    diff_r = (new[CONV_COL(j  ,k  ,height)].r - p[CONV_COL(j  ,k  ,height)].r) ;
+                    diff_g = (new[CONV_COL(j  ,k  ,height)].g - p[CONV_COL(j  ,k  ,height)].g) ;
+                    diff_b = (new[CONV_COL(j  ,k  ,height)].b - p[CONV_COL(j  ,k  ,height)].b) ;
+
+                    if ( diff_r > threshold || -diff_r > threshold 
+                            ||
+                                diff_g > threshold || -diff_g > threshold
+                                ||
+                                diff_b > threshold || -diff_b > threshold
+                        ) {
+                        end = 0 ;
+                    }
+
+                    p[CONV_COL(j  ,k  ,height)].r = new[CONV_COL(j  ,k  ,height)].r ;
+                    p[CONV_COL(j  ,k  ,height)].g = new[CONV_COL(j  ,k  ,height)].g ;
+                    p[CONV_COL(j  ,k  ,height)].b = new[CONV_COL(j  ,k  ,height)].b ;
+                }
+            }
     }
+
+    
     free (new) ;
     if ( threshold > 0 && !end )
         return 0;
     else
         return 1;
+
 }
 
 void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){
@@ -1135,6 +1173,10 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){
     MPI_Comm_rank(local_comm, &local_rank);
     // printf("global : %d    local : %d    rank_left : %d     rank_right : %d\n", global_rank, local_rank, info_recv.rank_left, info_recv.rank_right);
 
+    struct timeval t3, t4;
+    gettimeofday(&t3, NULL);
+
+
     apply_gray_filter_one_img(width_recv, height_recv, pixel_recv);
     do{
         //printf("ITERATION #%d\n", local_rank);
@@ -1158,6 +1200,11 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){
     } while( !end_global);            
     
     apply_sobel_filter_one_img_col(width_recv, height_recv, pixel_recv);
+
+
+    gettimeofday(&t4, NULL);
+    double actual_time = (t4.tv_sec-t3.tv_sec)+((t4.tv_usec-t3.tv_usec)/1e6);
+    printf(" WOKRING TIME: %lf \n", actual_time);
 }
 
 void get_heuristic(int *n_rounds, int *n_parts_per_img, int n_process, int n_images){
@@ -1266,11 +1313,12 @@ void main( int argc, char ** argv ){
     // CREATING ALL THE DIFFERENT COMMUNICATORS
     MPI_Bcast(&n_parts, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Comm_split(MPI_COMM_WORLD, rank/n_parts, rank, &local_comm);
+    double time = 0;
+    struct timeval t3,t4;
     
     if(rank == 0){
         
-    printf("_____START SENDING PARTS\n");
-
+        printf("_____START SENDING PARTS\n");
         int r,s;
         int n_img_per_round = n_images / n_rounds;
         for(r=0; r < n_rounds; r++){
@@ -1310,7 +1358,16 @@ void main( int argc, char ** argv ){
             int n_pixels_recv = n_total_columns * parts_info[root_img][0].height;
             pixel *pixel_recv = (pixel *)malloc( n_pixels_recv * sizeof(pixel) );
             MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
+
+
+            gettimeofday(&t3, NULL);
+
             call_worker(local_comm, parts_info[root_img][0], pixel_recv);
+
+            gettimeofday(&t4, NULL);
+            time += (t4.tv_sec-t3.tv_sec)+((t4.tv_usec-t3.tv_usec)/1e6);
+
+
             int n_pixels_to_send = parts_info[root_img][0].n_columns * parts_info[root_img][0].height;
             pixel* pixel_middle = pixel_recv; // No ghost_left
             int part_num = parts_info[root_img][0].order_sub_img;
@@ -1343,7 +1400,7 @@ void main( int argc, char ** argv ){
         
         gettimeofday(&t2, NULL);
         double duration = (t2.tv_sec-t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
-        printf("Duration of the process %lf", duration);
+        printf("Duration of the process %lf (calculus time: %lf)", duration, time);
         if(is_file_performance == 1){
             fp = fopen(perf_filename, "a");
             fprintf(fp, "%lf for %s\n", duration, input_filename) ;

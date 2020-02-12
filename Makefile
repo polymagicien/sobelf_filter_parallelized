@@ -4,7 +4,7 @@ OBJ_DIR=obj
 
 # CC=gcc
 CC=mpicc
-CFLAGS=-Wall -O3 -I$(HEADER_DIR)
+CFLAGS=-Wall -O3 -I$(HEADER_DIR) -fopenmp
 LDFLAGS=-lm
 
 SRC= dgif_lib.c \
