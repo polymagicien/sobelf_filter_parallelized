@@ -1,15 +1,16 @@
 #!/bin/bash
 
-
+# TO RUN MAINS ON SET OF DATA
+# ./run_test sobelf main_filename
 if [ "$1" = "sobelf" ]
 then
     make
 
     let "NODE = 1"
-    let "PROCESSES = 2"
+    let "PROCESSES = 8"
     INPUT_DIR=images/original
     OUTPUT_DIR=images/processed
-    PERFORMANCE_FILE="performance/perf_NODE_{$NODE}_proc_{$PROCESSES}.txt"
+    PERFORMANCE_FILE="performance/${2}_N_${NODE}_n_${PROCESSES}.txt"
     mkdir $OUTPUT_DIR 2>/dev/null
 
     touch $PERFORMANCE_FILE
@@ -20,7 +21,7 @@ then
     for i in $INPUT_DIR/*gif ; do
         DEST=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
         echo "Running test on $i -> $DEST"
-        salloc -N $NODE -n $PROCESSES mpirun ./sobelf $i $DEST $PERFORMANCE_FILE
+        salloc -N $NODE -n $PROCESSES mpirun ./$2 $i $DEST $PERFORMANCE_FILE
     done
 fi
 if [ "$1" = "test_pixels" ]
