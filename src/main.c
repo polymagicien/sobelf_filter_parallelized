@@ -1403,7 +1403,7 @@ void main( int argc, char ** argv ){
         printf("Duration of the process %lf (calculus time: %lf)", duration, time);
         if(is_file_performance == 1){
             fp = fopen(perf_filename, "a");
-            fprintf(fp, "%lf for %s\n", duration, input_filename) ;
+            fprintf(fp, "%lf (n = %d, n_images = %d) for %s\n", duration, n_process, n_images, input_filename) ;
             fclose(fp);
         }
 

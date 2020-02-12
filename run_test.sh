@@ -2,8 +2,11 @@
 
 # TO RUN MAINS ON SET OF DATA
 # ./run_test sobelf main_filename
-if [ "$1" = "sobelf" ]
+if [ "$1" = "on_img" ]
 then
+    # 1 : test to run
+    # 2 : binary tester
+    # ./run_test #1 #2
     make
 
     let "NODE = 1"
@@ -24,6 +27,37 @@ then
         salloc -N $NODE -n $PROCESSES mpirun ./$2 $i $DEST $PERFORMANCE_FILE
     done
 fi
+
+if [ "$1" = "on_processes" ]
+then
+    # 1 : test to run
+    # 2 : binary tester
+    # 3 : input_file
+    # ./run_test #1 #2 #3 
+
+    let "FROM=1"
+    let "TO=8"
+    let "NODE = 1"
+
+    INPUT_DIR=images/original
+    OUTPUT_DIR=images/processed
+    PERFORMANCE_FILE="performance/on_processes/${2}_N_${NODE}.txt"
+    mkdir $OUTPUT_DIR 2>/dev/null
+    touch $PERFORMANCE_FILE
+    rm $PERFORMANCE_FILE
+
+    for PROCESSES in $(seq $FROM $TO)
+    do
+
+        echo $PERFORMANCE_FILE
+
+        DEST=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
+        echo "Running test on $3 -> $DEST"
+        salloc -N $NODE -n $PROCESSES mpirun ./$2 $3 $DEST $PERFORMANCE_FILE
+    done
+fi
+
+
 if [ "$1" = "test_pixels" ]
 then
     make tester

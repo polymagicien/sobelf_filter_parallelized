@@ -1198,6 +1198,11 @@ void main( int argc, char ** argv ){
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &n_process);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    // Save performances
+    FILE *fp;
+    int is_file_performance = 0;
+    char * perf_filename ;
     
     // FIRST ALLOCATIONS
     int n_int_img_info = sizeof(img_info) / sizeof(int);
@@ -1215,9 +1220,13 @@ void main( int argc, char ** argv ){
         printf("INVALID ARGUMENT\n ./sobelf input_filename output_filename\n");
         return 1;
     }
-    
+    if(argc >= 4){
+        is_file_performance = 1;
+        perf_filename = argv[3];
+    }    
     char *input_filename = argv[1];
     char *output_filename = argv[2];
+
     animated_gif * image ;
 
     // CHOOSING THE CUTTING STRATEGIE
@@ -1334,8 +1343,12 @@ void main( int argc, char ** argv ){
         
         gettimeofday(&t2, NULL);
         double duration = (t2.tv_sec-t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
-        
         printf("Duration of the process %lf", duration);
+        if(is_file_performance == 1){
+            fp = fopen(perf_filename, "a");
+            fprintf(fp, "%lf for %s\n", duration, input_filename) ;
+            fclose(fp);
+        }
 
         if ( !store_pixels( output_filename, image ) ) { return 1 ; }
         printf("_____EXPORTED\n");
