@@ -574,7 +574,7 @@ int store_pixels( char * filename, animated_gif * image )
 
 void apply_gray_filter_one_img(int width, int height, pixel *p)
 {
-    int i, j ;
+    int j ;
     for ( j = 0 ; j < width * height; j++ )
     {
         int moy ;
@@ -595,7 +595,7 @@ void apply_gray_filter_one_img(int width, int height, pixel *p)
 
 void apply_blur_filter_one_img( int width, int height, pixel *p, int size, int threshold )
 {
-    int i, j, k ;
+    int j, k ;
     int end = 0 ;
     int n_iter = 0 ;
 
@@ -723,7 +723,7 @@ void apply_blur_filter_one_img( int width, int height, pixel *p, int size, int t
 
 void apply_sobel_filter_one_img(int width, int height, pixel *p)
 {
-    int i, j, k ;
+    int j, k ;
 
     pixel * sobel ;
     sobel = (pixel *)malloc(width * height * sizeof( pixel ) ) ;
@@ -734,7 +734,7 @@ void apply_sobel_filter_one_img(int width, int height, pixel *p)
         {
             int pixel_blue_no, pixel_blue_n, pixel_blue_ne;
             int pixel_blue_so, pixel_blue_s, pixel_blue_se;
-            int pixel_blue_o , pixel_blue  , pixel_blue_e ;
+            int pixel_blue_o  , pixel_blue_e ;
 
             float deltaX_blue ;
             float deltaY_blue ;
@@ -747,7 +747,6 @@ void apply_sobel_filter_one_img(int width, int height, pixel *p)
             pixel_blue_s  = p[CONV(j+1,k  ,width)].b ;
             pixel_blue_se = p[CONV(j+1,k+1,width)].b ;
             pixel_blue_o  = p[CONV(j  ,k-1,width)].b ;
-            pixel_blue    = p[CONV(j  ,k  ,width)].b ;
             pixel_blue_e  = p[CONV(j  ,k+1,width)].b ;
 
             deltaX_blue = -pixel_blue_no + pixel_blue_ne - 2*pixel_blue_o + 2*pixel_blue_e - pixel_blue_so + pixel_blue_se;             
@@ -845,8 +844,7 @@ int main( int argc, char ** argv )
     int is_file_performance = 0;
     char * perf_filename ;
 
-    int i, j;
-    pixel *p;
+    int i;
     MPI_Request req;
     MPI_Status status;
     int n_int_rcvd;

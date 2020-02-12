@@ -1107,27 +1107,26 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
 
 void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){
     pixel *pixel_ghost_left, *pixel_ghost_right, *pixel_middle;
-    int n_int_recv;
     int end_local, end_global;
 
-    int height_recv, width_recv, rank_left, rank_right, n_pixels_recv;
-    int n_int_column;
-    int n_int_img_info = sizeof(img_info) / sizeof(int);
+    int height_recv, width_recv, rank_left, rank_right;
+    // int n_int_column, n_int_recv, n_pixels_recv;
+    // int n_int_img_info = sizeof(img_info) / sizeof(int);
     int n_int_ghost_cells;
     MPI_Status status_left, status_right;
 
     // MPI_Request req_left, req_right;
     height_recv = info_recv.height;
     width_recv = info_recv.ghost_cells_left + info_recv.n_columns + info_recv.ghost_cells_right;
-    n_pixels_recv = width_recv * height_recv;
     rank_left = info_recv.rank_left;
     rank_right = info_recv.rank_right;
-    n_int_column = height_recv * sizeof(pixel) / sizeof(int);
     pixel_ghost_left = pixel_recv;
     pixel_middle = pixel_ghost_left + info_recv.ghost_cells_left * height_recv;
     pixel_ghost_right = pixel_middle + info_recv.n_columns * height_recv;
-    n_int_recv = width_recv * height_recv * sizeof(pixel) / sizeof(int);
     n_int_ghost_cells = SIZE_STENCIL * height_recv * sizeof(pixel) / sizeof(int);
+    // n_pixels_recv = width_recv * height_recv;
+    // n_int_column = height_recv * sizeof(pixel) / sizeof(int);
+    // n_int_recv = width_recv * height_recv * sizeof(pixel) / sizeof(int);
 
     // sleep(info_recv.order_sub_img);
     int global_rank, local_rank;
@@ -1189,7 +1188,7 @@ void get_heuristic(int *n_rounds, int *n_parts_per_img, int n_process, int n_ima
 }
 
 
-void main( int argc, char ** argv ){
+int  main( int argc, char ** argv ){
     /*
         n_process >= 2
     */
@@ -1208,7 +1207,6 @@ void main( int argc, char ** argv ){
     int n_int_img_info = sizeof(img_info) / sizeof(int);
     int n_parts, n_images, n_rounds;
     MPI_Comm local_comm;
-    int height, width, n_pixels;
     int i;
     img_info **parts_info = NULL;
     pixel **parts_pixel = NULL;
@@ -1240,13 +1238,6 @@ void main( int argc, char ** argv ){
 
         printf(" ----> For %d images and %d process, the heuristics found %d rounds of %d images splitted in %d\n", n_images, n_process, n_rounds, n_images/n_rounds, n_parts );
         
-        // n_images = 10;
-        // n_rounds = 2;
-        // n_parts = 3;
-        // pixel *img_pixels = (pixel *)malloc(n_pixels * sizeof(pixel));
-        pixel *img_pixels = image->p[0];
-
-
         parts_info = (img_info **)malloc(n_images* sizeof(img_info*));
         for(i = 0; i < n_images; i++)
             parts_info[i] = (img_info *)malloc(n_parts * sizeof(img_info));
@@ -1280,7 +1271,6 @@ void main( int argc, char ** argv ){
             // SENDING THE IMAGE IN PARTS
             pixel *beg_pixel;
             int n_total_columns;
-            int rank_dest;
             for (s=0; s < n_img_per_round; s++){
 
                 j = r*n_img_per_round + s;
@@ -1313,7 +1303,6 @@ void main( int argc, char ** argv ){
             call_worker(local_comm, parts_info[root_img][0], pixel_recv);
             int n_pixels_to_send = parts_info[root_img][0].n_columns * parts_info[root_img][0].height;
             pixel* pixel_middle = pixel_recv; // No ghost_left
-            int part_num = parts_info[root_img][0].order_sub_img;
             MPI_Isend(pixel_middle, n_pixels_to_send * 3, MPI_INT, 0, status.MPI_TAG, MPI_COMM_SELF, &req);
             
             MPI_Recv(parts_pixel[root_part_n], parts_info[root_img][0].n_columns, COLUMNS[root_img], 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
