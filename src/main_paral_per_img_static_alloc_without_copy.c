@@ -942,7 +942,7 @@ int main( int argc, char ** argv )
         duration = (t2.tv_sec-t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
         if(is_file_performance == 1){
             fp = fopen(perf_filename, "a");
-            fprintf(fp, "%lf for %s\n", duration, input_filename) ;
+            fprintf(fp, "%lf (n = %d, n_images = %d) for %s\n", duration, size, n_images, input_filename) ;
             fclose(fp);
         }
 
