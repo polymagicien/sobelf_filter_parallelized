@@ -22,9 +22,9 @@ then
     echo $PERFORMANCE_FILE
 
     for i in $INPUT_DIR/*gif ; do
-        DEST=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
-        echo "Running test on $i -> $DEST"
-        salloc -N $NODE -n $PROCESSES mpirun ./$2 $i $DEST $PERFORMANCE_FILE
+        dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
+        echo "Running test on $i -> $dest_filename"
+        salloc -N $NODE -n $PROCESSES mpirun ./$2 $i $dest_filename $PERFORMANCE_FILE
     done
 fi
 
@@ -35,25 +35,23 @@ then
     # 3 : input_file
     # ./run_test #1 #2 #3 
 
-    let "FROM=1"
+    let "FROM=8"
     let "TO=8"
     let "NODE = 1"
 
     INPUT_DIR=images/original
     OUTPUT_DIR=images/processed
-    PERFORMANCE_FILE="performance/on_processes/${2}_N_${NODE}.txt"
+    source_filename=`basename $3 .gif`
+    PERFORMANCE_FILE="performance/on_processes/${2}_${source_filename}_N_${NODE}.txt"
     mkdir $OUTPUT_DIR 2>/dev/null
     touch $PERFORMANCE_FILE
     rm $PERFORMANCE_FILE
 
     for PROCESSES in $(seq $FROM $TO)
     do
-
-        echo $PERFORMANCE_FILE
-
-        DEST=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
-        echo "Running test on $3 -> $DEST"
-        salloc -N $NODE -n $PROCESSES mpirun ./$2 $3 $DEST $PERFORMANCE_FILE
+        dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
+        echo "Running test on $3 -> $dest_filename"
+        salloc -N $NODE -n $PROCESSES mpirun ./$2 $3 $dest_filename $PERFORMANCE_FILE
     done
 fi
 
@@ -64,13 +62,13 @@ then
     let "NODE = 1"
     let "PROCESSES = 1"
     INPUT_DIR=images/original
-    DEST=test_results/ratio_pixels.txt
+    dest_filename=test_results/ratio_pixels.txt
 
-    touch $DEST
-    rm $DEST
+    touch $dest_filename
+    rm $dest_filename
 
     for i in $INPUT_DIR/*gif ; do
-        echo "Running test on $i -> $DEST"
-        salloc -N $NODE -n $PROCESSES mpirun ./test 2 $i $DEST
+        echo "Running test on $i -> $dest_filename"
+        salloc -N $NODE -n $PROCESSES mpirun ./test 2 $i $dest_filename
     done
 fi
