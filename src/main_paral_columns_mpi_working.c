@@ -871,6 +871,8 @@ int load_image_from_file(animated_gif **image , int *n_images, char *input_filen
     struct timeval t1, t2;
     gettimeofday(&t1, NULL);
     *image = load_pixels( input_filename );
+    if( *image == NULL )    // If error when loading pixels
+        return -1;
     *n_images = (*image)->n_images;
     if ( image == NULL ) { printf("IMAGE NULL"); return 1 ; }
     gettimeofday(&t2, NULL);
@@ -1213,29 +1215,35 @@ int  main( int argc, char ** argv ){
     MPI_Datatype *COLUMNS = NULL;
 
     struct timeval t1, t2;
-
-    if(argc < 3){
-        printf("INVALID ARGUMENT\n ./sobelf input_filename output_filename\n");
-        return 1;
-    }
-    if(argc >= 4){
-        is_file_performance = 1;
-        perf_filename = argv[3];
-    }    
-    char *input_filename = argv[1];
-    char *output_filename = argv[2];
-
+    
+    char *input_filename = NULL, *output_filename = NULL;
     animated_gif * image ;
 
-    // CHOOSING THE CUTTING STRATEGIE
     if(rank == 0){
+        // Check arguments
+        if(argc < 3){
+            printf("INVALID ARGUMENT : ./binary_name input_filename output_filename [performance filename]\n");
+            MPI_Abort(MPI_COMM_WORLD, 1);
+            return 1;
+        }
+        if(argc >= 4){
+            is_file_performance = 1;
+            perf_filename = argv[3];
+        }    
+        input_filename = argv[1];
+        output_filename = argv[2];
 
-        load_image_from_file(&image, &n_images, input_filename);
+        // Load image
+        if( load_image_from_file(&image, &n_images, input_filename) == -1){
+            printf("(ERROR WHEN LOADING  IMAGE)\n");
+            MPI_Abort(MPI_COMM_WORLD, 1);
+            return 1;
+        }
 
         gettimeofday(&t1, NULL);
 
+        // Choose cutting method
         get_heuristic(&n_rounds, &n_parts,n_process,n_images);
-
         printf(" ----> For %d images and %d process, the heuristics found %d rounds of %d images splitted in %d\n", n_images, n_process, n_rounds, n_images/n_rounds, n_parts );
         
         parts_info = (img_info **)malloc(n_images* sizeof(img_info*));
@@ -1248,26 +1256,20 @@ int  main( int argc, char ** argv ){
         get_parts(parts_info,parts_pixel,COLUMNS,image,n_parts, n_images);
 
         printf("_____INITIALIZATION FINISHED\n");
-        // print_array(img_pixels, n_pixels, width, "INITIAL");
-
     }
 
 
-
-    // CREATING ALL THE DIFFERENT COMMUNICATORS
+    // CREATING COMMUNICATORS
     MPI_Bcast(&n_parts, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Comm_split(MPI_COMM_WORLD, rank/n_parts, rank, &local_comm);
     
     if(rank == 0){
         
     printf("_____START SENDING PARTS\n");
-
         int r,s;
         int n_img_per_round = n_images / n_rounds;
+        int j;
         for(r=0; r < n_rounds; r++){
-
-
-            int j;
             // SENDING THE IMAGE IN PARTS
             pixel *beg_pixel;
             int n_total_columns;
@@ -1324,21 +1326,29 @@ int  main( int argc, char ** argv ){
                 }
             }
 
-            // EXPORTING THE IMAGE
-
         }
         
         printf("_____FINISHED RECEIVING\n");
         
+        
         gettimeofday(&t2, NULL);
         double duration = (t2.tv_sec-t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
-        printf("Duration of the process %lf", duration);
+        printf("Duration of the process %lf\n", duration);
+
+        // Save performance time
         if(is_file_performance == 1){
             fp = fopen(perf_filename, "a");
-            fprintf(fp, "%lf for %s\n", duration, input_filename) ;
+            if(fp == NULL){
+                printf("----- Issue opening performance file");
+                MPI_Abort(MPI_COMM_WORLD, 1);
+                return 1;
+            }
+            fprintf(fp, "%lf (n = %d, n_images = %d) for %s\n", duration, n_process, n_images, input_filename) ;
             fclose(fp);
         }
 
+
+        // EXPORTING THE IMAGE
         if ( !store_pixels( output_filename, image ) ) { return 1 ; }
         printf("_____EXPORTED\n");
 
@@ -1346,9 +1356,6 @@ int  main( int argc, char ** argv ){
         MPI_Request req;
         for(i=1; i < n_parts * n_img_per_round; i++)
             MPI_Isend(&buf, 1, MPI_INT, i, 0, MPI_COMM_WORLD, &req);
-
-
-
 
     }
     else {

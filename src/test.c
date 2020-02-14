@@ -2150,6 +2150,31 @@ void test_working(int argc, char **argv){
     return 0;
 }
 
+void test_scatterv(int argc, char **argv){
+    int n_process, rank;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &n_process);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    if( n_process != 2 ){
+        printf( "N should be == 2" );
+        MPI_Abort( MPI_COMM_WORLD, 1 );
+    }
+
+    int p_1[] = {1,2,3,4};
+    int p_2[] = {5,6,7,8};
+    // int *p_tot[] = {p_1, p_2};
+    int p_tot[] = {1,2,3,4,5,6,7,8,9};
+    int send_count[] = {4,4};
+    int displ[] = {0,4};
+
+    int *receiver = (int *)malloc( 4 * sizeof(int) );
+    MPI_Scatterv(p_tot, send_count, displ, MPI_INT, receiver, 4, MPI_INT, 0, MPI_COMM_WORLD);
+
+    printf("%d : %d %d %d %d\n", rank, receiver[0], receiver[1], receiver[2], receiver[3]);
+    MPI_Finalize();
+}
+
 /****************************************************************************************************************************************************/
 
 // Main entry point
@@ -2186,6 +2211,9 @@ int main( int argc, char ** argv )
             break;
         case 9:
             test_working(argc-1,argv+1);
+            break;
+        case 10:
+            test_scatterv(argc-1,argv+1);
             break;
         default:
             printf("Wrong argument\n");

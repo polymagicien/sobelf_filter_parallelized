@@ -115,8 +115,6 @@ OBJ_columns_mpi= $(OBJ_DIR)/dgif_lib.o \
 
 all: $(OBJ_DIR) sobelf_main sobelf_img_without_copy sobelf_img sobelf_columns_mpi
 
-tester: $(OBJ_DIR) test
-
 $(OBJ_DIR):
 	mkdir $(OBJ_DIR)
 
@@ -135,7 +133,7 @@ sobelf_img:$(OBJ_img)
 sobelf_columns_mpi:$(OBJ_columns_mpi)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-test:$(OBJTEST)
+test:$(OBJ_test)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 clean:

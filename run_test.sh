@@ -7,8 +7,7 @@ then
     # 1 : test to run
     # 2 : binary tester
     # ./run_test #1 #2
-    make
-
+    
     let "NODE = 1"
     let "PROCESSES = 8"
     INPUT_DIR=images/original
