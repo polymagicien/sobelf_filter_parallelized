@@ -6,7 +6,7 @@ if [ "$1" = "on_img" ]
 then
     # 1 : test to run
     # 2 : binary tester
-    # ./run_test #1 #2
+    # ./run_test m#1 #2
     
     let "NODE = 1"
     let "PROCESSES = 8"
