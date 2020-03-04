@@ -878,7 +878,7 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
     }
     fprintf(fp,"\n");
     printf("\n");
-    close(fp);
+    fclose(fp);
 
     if ( threshold > 0 && !end )
         return 0;
@@ -1075,7 +1075,7 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){ //
     }
     fprintf(fp,"\n");
     printf("\n");
-    close(fp);
+    fclose(fp);
 }
 
 void get_heuristic(int *n_rounds, int *n_parts_per_img, int n_process, int n_images){ // First draw of heuristics
@@ -1127,7 +1127,7 @@ int main( int argc, char ** argv ){
 
     struct timeval t11, t12, t21, t22, t31, t32, t32bis, t32bisbis, t33;
 
-    if(argc < 3){
+    if(argc < 3){ 
         printf("INVALID ARGUMENT\n ./sobelf input_filename output_filename\n");
         return 1;
     }
