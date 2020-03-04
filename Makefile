@@ -27,6 +27,27 @@ OBJ_main= $(OBJ_DIR)/dgif_lib.o \
 	$(OBJ_DIR)/main.o \
 	$(OBJ_DIR)/openbsd-reallocarray.o \
 	$(OBJ_DIR)/quantize.o
+
+# COMPILE main_init_openMP
+SRC_init_openMP= dgif_lib.c \
+	egif_lib.c \
+	gif_err.c \
+	gif_font.c \
+	gif_hash.c \
+	gifalloc.c \
+	main_init_openMP.c \
+	openbsd-reallocarray.c \
+	quantize.c
+
+OBJ_init_openMP= $(OBJ_DIR)/dgif_lib.o \
+	$(OBJ_DIR)/egif_lib.o \
+	$(OBJ_DIR)/gif_err.o \
+	$(OBJ_DIR)/gif_font.o \
+	$(OBJ_DIR)/gif_hash.o \
+	$(OBJ_DIR)/gifalloc.o \
+	$(OBJ_DIR)/main_init_openMP.o \
+	$(OBJ_DIR)/openbsd-reallocarray.o \
+	$(OBJ_DIR)/quantize.o
 	
 # COMPILE test
 SRC_test= dgif_lib.c \
@@ -113,7 +134,7 @@ OBJ_columns_mpi= $(OBJ_DIR)/dgif_lib.o \
 	$(OBJ_DIR)/quantize.o
 
 
-all: $(OBJ_DIR) sobelf_main sobelf_img_without_copy sobelf_img sobelf_columns_mpi
+all: $(OBJ_DIR) sobelf_main sobelf_img_without_copy sobelf_img sobelf_columns_mpi sobelf_openMP
 
 $(OBJ_DIR):
 	mkdir $(OBJ_DIR)
@@ -132,6 +153,10 @@ sobelf_img:$(OBJ_img)
 
 sobelf_columns_mpi:$(OBJ_columns_mpi)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+sobelf_openMP:$(OBJ_init_openMP)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	# $(CC) $(CFLAGS) -o $@ -fopenmp $^ $(LDFLAGS)
 
 test:$(OBJ_test)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)

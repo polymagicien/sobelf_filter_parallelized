@@ -2163,13 +2163,13 @@ void test_scatterv(int argc, char **argv){
 
     int p_1[] = {1,2,3,4};
     int p_2[] = {5,6,7,8};
-    // int *p_tot[] = {p_1, p_2};
-    int p_tot[] = {1,2,3,4,5,6,7,8,9};
+    
     int send_count[] = {4,4};
-    int displ[] = {0,4};
+    int p = p_2 - p_1;
+    int displ[] = {0,p};
 
     int *receiver = (int *)malloc( 4 * sizeof(int) );
-    MPI_Scatterv(p_tot, send_count, displ, MPI_INT, receiver, 4, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Scatterv(p_1, send_count, displ, MPI_INT, receiver, 4, MPI_INT, 0, MPI_COMM_WORLD);
 
     printf("%d : %d %d %d %d\n", rank, receiver[0], receiver[1], receiver[2], receiver[3]);
     MPI_Finalize();
