@@ -1108,7 +1108,7 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
 }
 
 void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){
-    pixel *pixel_ghost_left, *pixel_ghost_right, *pixel_middle;
+    pixel *pixel_ghost_left, *pixel_ghost_right, *pixel_middle, *pixel_middle_plus;
     int end_local, end_global;
 
     int height_recv, width_recv, rank_left, rank_right;
@@ -1125,6 +1125,7 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){
     pixel_ghost_left = pixel_recv;
     pixel_middle = pixel_ghost_left + info_recv.ghost_cells_left * height_recv;
     pixel_ghost_right = pixel_middle + info_recv.n_columns * height_recv;
+    pixel_middle_plus = pixel_ghost_right - info_recv.ghost_cells_right * height_recv;
     n_int_ghost_cells = SIZE_STENCIL * height_recv * sizeof(pixel) / sizeof(int);
     // n_pixels_recv = width_recv * height_recv;
     // n_int_column = height_recv * sizeof(pixel) / sizeof(int);
@@ -1151,7 +1152,7 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){
             
             // Send right ghost cells, receive left ghost cells  
             if( rank_right != -1 )
-                MPI_Send(pixel_ghost_right, n_int_ghost_cells, MPI_INT, rank_right, 0, local_comm);
+                MPI_Send(pixel_middle_plus, n_int_ghost_cells, MPI_INT, rank_right, 0, local_comm);
             if( rank_left != -1 )
                 MPI_Recv(pixel_ghost_left, n_int_ghost_cells, MPI_INT, rank_left, MPI_ANY_TAG, local_comm, &status_left);
         }
