@@ -602,135 +602,98 @@ void apply_gray_filter_one_img(int width, int height, pixel *p)
     int j ;
     int end_loop = width * height;
 
-    #pragma omp parallel default(none) private(j) shared(end_loop, p)
-    {   
-        #pragma omp for
-            for ( j = 0 ; j < end_loop ; j++ )
-            {
-                int moy ;
-                moy = (p[j].r + p[j].g + p[j].b)/3 ;
-                if ( moy < 0 ) moy = 0 ;
-                if ( moy > 255 ) moy = 255 ;
+    #pragma omp for
+        for ( j = 0 ; j < end_loop ; j++ )
+        {
+            int moy ;
+            moy = (p[j].r + p[j].g + p[j].b)/3 ;
+            if ( moy < 0 ) moy = 0 ;
+            if ( moy > 255 ) moy = 255 ;
 
-                p[j].r = moy ;
-                p[j].g = moy ;
-                p[j].b = moy ;
-            }
-    }
+            p[j].r = moy ;
+            p[j].g = moy ;
+            p[j].b = moy ;
+        }
 }
 
-void apply_sobel_filter_one_img_col(int width, int height, pixel *p)
+void apply_sobel_filter_one_img_col(int width, int height, pixel *p, pixel *sobel)
 {
     int j, k ;
-    pixel * sobel ;
-    sobel = (pixel *)malloc(width * height * sizeof( pixel ) ) ;
     int hmu = height - 1;
     int wmu = width - 1;
 
-    #pragma omp parallel default(none) private(j,k) shared(hmu, wmu, p, sobel, height)
-    {
-
-        #pragma omp for schedule(static,20)
-            for(j=1; j<hmu; j++)
+    #pragma omp for collapse(2) schedule(static,100)
+        for(j=1; j<hmu; j++)
+        {
+            for(k=1; k<wmu; k++)
             {
-                for(k=1; k<wmu; k++)
+                int pixel_blue_no, pixel_blue_n, pixel_blue_ne;
+                int pixel_blue_so, pixel_blue_s, pixel_blue_se;
+                int pixel_blue_o /*, pixel_blue*/  , pixel_blue_e ;
+
+                float deltaX_blue ;
+                float deltaY_blue ;
+                float val_blue;
+
+                pixel_blue_no = p[CONV_COL(j-1,k-1,height)].b ;
+                pixel_blue_n  = p[CONV_COL(j-1,k  ,height)].b ;
+                pixel_blue_ne = p[CONV_COL(j-1,k+1,height)].b ;
+                pixel_blue_so = p[CONV_COL(j+1,k-1,height)].b ;
+                pixel_blue_s  = p[CONV_COL(j+1,k  ,height)].b ;
+                pixel_blue_se = p[CONV_COL(j+1,k+1,height)].b ;
+                pixel_blue_o  = p[CONV_COL(j  ,k-1,height)].b ;
+                // pixel_blue    = p[CONV_COL(j  ,k  ,height)].b ;
+                
+                pixel_blue_e  = p[CONV_COL(j  ,k+1,height)].b ;
+                deltaX_blue = -pixel_blue_no + pixel_blue_ne - 2*pixel_blue_o + 2*pixel_blue_e - pixel_blue_so + pixel_blue_se;             
+                deltaY_blue = pixel_blue_se + 2*pixel_blue_s + pixel_blue_so - pixel_blue_ne - 2*pixel_blue_n - pixel_blue_no;
+
+                val_blue = sqrt(deltaX_blue * deltaX_blue + deltaY_blue * deltaY_blue)/4;
+
+
+                if ( val_blue > 50 ) 
                 {
-                    int pixel_blue_no, pixel_blue_n, pixel_blue_ne;
-                    int pixel_blue_so, pixel_blue_s, pixel_blue_se;
-                    int pixel_blue_o /*, pixel_blue*/  , pixel_blue_e ;
-
-                    float deltaX_blue ;
-                    float deltaY_blue ;
-                    float val_blue;
-
-                    pixel_blue_no = p[CONV_COL(j-1,k-1,height)].b ;
-                    pixel_blue_n  = p[CONV_COL(j-1,k  ,height)].b ;
-                    pixel_blue_ne = p[CONV_COL(j-1,k+1,height)].b ;
-                    pixel_blue_so = p[CONV_COL(j+1,k-1,height)].b ;
-                    pixel_blue_s  = p[CONV_COL(j+1,k  ,height)].b ;
-                    pixel_blue_se = p[CONV_COL(j+1,k+1,height)].b ;
-                    pixel_blue_o  = p[CONV_COL(j  ,k-1,height)].b ;
-                    // pixel_blue    = p[CONV_COL(j  ,k  ,height)].b ;
-                    pixel_blue_e  = p[CONV_COL(j  ,k+1,height)].b ;
-
-                    deltaX_blue = -pixel_blue_no + pixel_blue_ne - 2*pixel_blue_o + 2*pixel_blue_e - pixel_blue_so + pixel_blue_se;             
-
-                    deltaY_blue = pixel_blue_se + 2*pixel_blue_s + pixel_blue_so - pixel_blue_ne - 2*pixel_blue_n - pixel_blue_no;
-
-                    val_blue = sqrt(deltaX_blue * deltaX_blue + deltaY_blue * deltaY_blue)/4;
-
-
-                    if ( val_blue > 50 ) 
-                    {
-                        sobel[CONV_COL(j  ,k  ,height)].r = 255 ;
-                        sobel[CONV_COL(j  ,k  ,height)].g = 255 ;
-                        sobel[CONV_COL(j  ,k  ,height)].b = 255 ;
-                    } else
-                    {
-                        sobel[CONV_COL(j  ,k  ,height)].r = 0 ;
-                        sobel[CONV_COL(j  ,k  ,height)].g = 0 ;
-                        sobel[CONV_COL(j  ,k  ,height)].b = 0 ;
-                    }
+                    sobel[CONV_COL(j  ,k  ,height)].r = 255 ;
+                    sobel[CONV_COL(j  ,k  ,height)].g = 255 ;
+                    sobel[CONV_COL(j  ,k  ,height)].b = 255 ;
+                } else
+                {
+                    sobel[CONV_COL(j  ,k  ,height)].r = 0 ;
+                    sobel[CONV_COL(j  ,k  ,height)].g = 0 ;
+                    sobel[CONV_COL(j  ,k  ,height)].b = 0 ;
                 }
             }
+        }
 
-        #pragma omp for schedule(static,20)
-            for(j=1; j<hmu; j++)
+    #pragma omp for collapse(2) schedule(static,100)
+        for(j=1; j<hmu; j++)
+        {
+            for(k=1; k<wmu; k++)
             {
-                for(k=1; k<wmu; k++)
-                {
-                    p[CONV_COL(j  ,k  ,height)].r = sobel[CONV_COL(j  ,k  ,height)].r ;
-                    p[CONV_COL(j  ,k  ,height)].g = sobel[CONV_COL(j  ,k  ,height)].g ;
-                    p[CONV_COL(j  ,k  ,height)].b = sobel[CONV_COL(j  ,k  ,height)].b ;
-                }
+                p[CONV_COL(j  ,k  ,height)].r = sobel[CONV_COL(j  ,k  ,height)].r ;
+                p[CONV_COL(j  ,k  ,height)].g = sobel[CONV_COL(j  ,k  ,height)].g ;
+                p[CONV_COL(j  ,k  ,height)].b = sobel[CONV_COL(j  ,k  ,height)].b ;
             }
+        }
 
-    }
-
-    free(sobel);
 }
 
-int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, int threshold )
+int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, int threshold, pixel *new, int *end )
 {
     
-    struct timeval times[20];
-    int counter = 0;
-    gettimeofday(&(times[counter]), NULL);
-    counter++;
-
-    FILE *fp = fopen("for_comp.txt", "a");
-    
     int j, k ;
-    int end = 0 ;
 
-    pixel * new ;
-    int n_iter = 0 ;
-
-    /* Allocate array of new pixels */
-    new = (pixel *)malloc(width * height * sizeof( pixel ) ) ;
-
-    end = 1 ;
-    n_iter++ ;
-
+    // Limits of for loops
     int end_loop = height*0.9+size;
     int begin_loop = height/10-size;
     int end_last_loop = height-size;
     int end_mid_loop = width-size;
-
     int hmu = height - 1;
     int wmu = width - 1;
     int msize = -size;
 
-
-    gettimeofday(&(times[counter]), NULL);
-    counter++;
-
-
-    #pragma omp parallel default(none) private(j,k) shared(size, begin_loop,p,height,new,end_mid_loop,end_loop,end_last_loop,msize,end, threshold, wmu,hmu, counter, times)
-    {
-
         // Copy pixels of images in ew 
-        #pragma omp for
+        #pragma omp for collapse(2)
             for(j=0; j<hmu; j++)
             {
                 for(k=0; k<wmu; k++)
@@ -741,15 +704,8 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
                 }
             }
 
-        #pragma omp single 
-        {
-            gettimeofday(&(times[counter]), NULL);
-            counter++;
-        }
-
-
-        #pragma omp for
             /* Apply blur on top part of image (10%) */
+        #pragma omp for collapse(2)
             for(j=size; j<begin_loop; j++)
             {
                 for(k=size; k<end_mid_loop; k++)
@@ -775,15 +731,9 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
                 }
             }
 
-        #pragma omp single 
-        {
-            gettimeofday(&(times[counter]), NULL);
-            counter++;
-        }
-
-
-        #pragma omp for
+       
             /* Copy the middle part of the image */
+        #pragma omp for collapse(2)
             for(j= begin_loop; j< end_loop; j++)
             {
                 for(k=size; k<end_mid_loop; k++)
@@ -794,14 +744,9 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
                 }
             }
 
-         #pragma omp single 
-        {
-            gettimeofday(&(times[counter]), NULL);
-            counter++;
-        }
-
-        #pragma omp for
+       
             /* Apply blur on the bottom part of the image (10%) */
+        #pragma omp for collapse(2)
             for(j=end_loop; j<end_last_loop; j++)
             {
                 for(k=size; k<end_mid_loop; k++)
@@ -826,19 +771,12 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
                     new[CONV_COL(j,k,height)].b = t_b / ( (2*size+1)*(2*size+1) ) ;
                 }
             }
-        
-        #pragma omp single 
-        {
-            gettimeofday(&(times[counter]), NULL);
-            counter++;
-        }
 
-        #pragma omp for
+        #pragma omp for collapse(2)
             for(j=1; j<hmu; j++)
             {
                 for(k=1; k<wmu; k++)
                 {
-
                     float diff_r ;
                     float diff_g ;
                     float diff_b ;
@@ -853,7 +791,7 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
                                 ||
                                 diff_b > threshold || -diff_b > threshold
                         ) {
-                        end = 0 ;
+                        *end = 0 ;
                     }
 
                     p[CONV_COL(j  ,k  ,height)].r = new[CONV_COL(j  ,k  ,height)].r ;
@@ -861,30 +799,6 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
                     p[CONV_COL(j  ,k  ,height)].b = new[CONV_COL(j  ,k  ,height)].b ;
                 }
             }
-    }
-
-    gettimeofday(&(times[counter]), NULL);
-    counter++;
-    
-    free (new) ;
-
-
-    printf(" length: %i", counter);
-    int i;
-    for (i = 0; i < counter; i++) {
-        double duration = (times[i+1].tv_sec-times[i].tv_sec)+((times[i+1].tv_usec-times[i].tv_usec)/1e6);
-        printf("%lf ", duration);
-        fprintf(fp," %lf;", duration);
-    }
-    fprintf(fp,"\n");
-    printf("\n");
-    close(fp);
-
-    if ( threshold > 0 && !end )
-        return 0;
-    else
-        return 1;
-
 }
 
 /****************************************************************************************************************************************************/
@@ -989,9 +903,9 @@ void fill_tables(img_info info_array[], pixel* pixel_array[], MPI_Datatype datat
     animated_gif image = *img;
     int i;
 
-    #pragma omp parallel default(none) private(i) shared(info_array, pixel_array, datatypes, img, n_parts_by_image, n_images, image)
-    {
-        #pragma omp for
+    // #pragma omp parallel default(none) private(i) shared(info_array, pixel_array, datatypes, img, n_parts_by_image, n_images, image)
+    // {
+    //     #pragma omp for
             for (i = 0; i < n_images; i++){
 
                 // FILL DATATYPE : Create this image's column datatype (handling different heights)
@@ -1003,7 +917,7 @@ void fill_tables(img_info info_array[], pixel* pixel_array[], MPI_Datatype datat
                 // FILL PIXEL ARRAY : 
                 fill_pixel_column_pointers_for_one_image( pixel_array, image.p[i], n_parts_by_image, i, info_array );
             }
-    }
+    // }
 }
 
 /****************************************************************************************************************************************************/
@@ -1015,6 +929,7 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){ //
     int n_int_ghost_cells;
     MPI_Status status_left, status_right;
 
+    end_local = 1;
     height_recv = info_recv.height;
     width_recv = info_recv.width;
     rank_left = info_recv.rank_left;
@@ -1032,50 +947,75 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv){ //
     struct timeval times[20];
     int counter = 2;
 
-    gettimeofday(times, NULL);
-    apply_gray_filter_one_img(width_recv, height_recv, pixel_recv);
-    gettimeofday(times+1, NULL);
-    do{
-        end_local = apply_blur_filter_one_iter_col(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20);
-        MPI_Allreduce(&end_local, &end_global, 1, MPI_INT, MPI_LOR, local_comm);
-        if( !end_global ){
-            // Send left ghost cells, receive rigth ghost cells
-            if( rank_left != -1 )
-                MPI_Send(pixel_middle, n_int_ghost_cells, MPI_INT, rank_left, 0, local_comm);
-            if( rank_right != -1 )
-                MPI_Recv(pixel_ghost_right, n_int_ghost_cells, MPI_INT, rank_right, MPI_ANY_TAG, local_comm, &status_right);
-            
-            // Send right ghost cells, receive left ghost cells  
-            if( rank_right != -1 )
-                MPI_Send(pixel_middle_plus, n_int_ghost_cells, MPI_INT, rank_right, 0, local_comm);
-            if( rank_left != -1 )
-                MPI_Recv(pixel_ghost_left, n_int_ghost_cells, MPI_INT, rank_left, MPI_ANY_TAG, local_comm, &status_left);
-        }
-        gettimeofday(&(times[counter]), NULL);
-        counter++;
-    } while( !end_global);            
-    
-    apply_sobel_filter_one_img_col(width_recv, height_recv, pixel_recv);
-    gettimeofday(&(times[counter]), NULL);
-    int i;
+    //Used in functions to store
+    pixel *interm = (pixel *)malloc(width_recv * height_recv * sizeof( pixel ) );
 
-    int k = 0;
-    #pragma omp parallel
-    {
-        k = omp_get_num_threads();
+    gettimeofday(times, NULL);
+
+    #pragma omp parallel default(none) shared(pixel_recv, height_recv, width_recv, times, end_local, end_global, interm, rank_left, rank_right, pixel_ghost_left, pixel_middle, pixel_ghost_right, pixel_middle_plus, n_int_ghost_cells, local_comm, ompi_mpi_op_lor, ompi_mpi_int, status_right, status_left,counter)
+    {   
+
+        apply_gray_filter_one_img(width_recv, height_recv, pixel_recv);
+        
+        #pragma omp barrier
+        #pragma omp master
+        {
+            gettimeofday(times+1, NULL);
+            printf("finished gray\n");
+        }
+
+
+        do{
+
+            end_local = 1;
+            apply_blur_filter_one_iter_col(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20, interm, &end_local);
+
+            #pragma omp barrier
+            #pragma omp master
+            {
+                MPI_Allreduce(&end_local, &end_global, 1, MPI_INT, MPI_LOR, local_comm);
+                if( !end_global ){
+                    // Send left ghost cells, receive rigth ghost cells
+                    if( rank_left != -1 )
+                        MPI_Send(pixel_middle, n_int_ghost_cells, MPI_INT, rank_left, 0, local_comm);
+                    if( rank_right != -1 )
+                        MPI_Recv(pixel_ghost_right, n_int_ghost_cells, MPI_INT, rank_right, MPI_ANY_TAG, local_comm, &status_right);
+                    
+                    // Send right ghost cells, receive left ghost cells  
+                    if( rank_right != -1 )
+                        MPI_Send(pixel_middle_plus, n_int_ghost_cells, MPI_INT, rank_right, 0, local_comm);
+                    if( rank_left != -1 )
+                        MPI_Recv(pixel_ghost_left, n_int_ghost_cells, MPI_INT, rank_left, MPI_ANY_TAG, local_comm, &status_left);
+                }
+                gettimeofday(times +counter, NULL);
+                counter++;
+            }
+            #pragma omp barrier
+        } while( !end_global);
+        printf("finished blur from %i\n", omp_get_thread_num());
+        apply_sobel_filter_one_img_col(width_recv, height_recv, pixel_recv, interm);
     }
 
-   FILE *fp = fopen("comparaison.txt", "a");
-    fprintf(fp, "%i; %i; ", local_rank, k) ;
-    printf("part %i ", local_rank);
+    printf("finished sobel\n");
+
+    // Free struct used in function to store
+    free(interm);
+
+
+    gettimeofday( times +counter , NULL);
+    int i;
+
+   //FILE *fp = fopen("comparaison.txt", "a");
+    //fprintf(fp, "%i; %i; ", local_rank, k) ;
+    printf("part %i:    ", local_rank);
     for (i = 0; i < counter; i++) {
         double duration = (times[i+1].tv_sec-times[i].tv_sec)+((times[i+1].tv_usec-times[i].tv_usec)/1e6);
         printf("%lf ", duration);
-        fprintf(fp," %lf;", duration);
+        //fprintf(fp," %lf;", duration);
     }
-    fprintf(fp,"\n");
+    //fprintf(fp,"\n");
     printf("\n");
-    close(fp);
+    //close(fp);
 }
 
 void get_heuristic(int *n_rounds, int *n_parts_per_img, int n_process, int n_images){ // First draw of heuristics
@@ -1186,9 +1126,9 @@ int main( int argc, char ** argv ){
             
             gettimeofday(&t31, NULL);
 
-            #pragma omp parallel default(none) private(j) shared(r, n_img_per_round, n_parts, parts_info, parts_pixel, COLUMNS, n_int_img_info, ompi_mpi_comm_world, ompi_mpi_int)
-            {
-                #pragma omp for
+            // #pragma omp parallel default(none) private(j) shared(r, n_img_per_round, n_parts, parts_info, parts_pixel, COLUMNS, n_int_img_info, ompi_mpi_comm_world, ompi_mpi_int)
+            // {
+            //     #pragma omp for
                     for (j=1; j < n_img_per_round * n_parts; j++){
                         int part_n = r * n_img_per_round * n_parts + j;
                         int img_n = parts_info[part_n].image;
@@ -1198,7 +1138,7 @@ int main( int argc, char ** argv ){
                         MPI_Send(beg_pixel, parts_info[part_n].width, COLUMNS[img_n], j, 0, MPI_COMM_WORLD);
                         // printf("Sending part %i from (%i,%i,%i,%i) from pixel %i\n ", part_n, parts_info[part_n].ghost_cells_left,parts_info[part_n].n_columns, parts_info[part_n].ghost_cells_right, parts_info[part_n].width, beg_pixel->b);
                     }
-            }
+            // }
 
             gettimeofday(&t32, NULL);
 
