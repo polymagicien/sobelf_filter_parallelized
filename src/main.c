@@ -1073,7 +1073,7 @@ int main( int argc, char ** argv ){
 
     struct timeval t11, t12, t21, t22, t31, t32, t32bis, t32bisbis, t33;
 
-    if(argc < 3){
+    if(argc < 3){ 
         printf("INVALID ARGUMENT\n ./sobelf input_filename output_filename\n");
         return 1;
     }

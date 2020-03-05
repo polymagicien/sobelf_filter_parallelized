@@ -18,15 +18,20 @@ SRC_main= dgif_lib.c \
 	openbsd-reallocarray.c \
 	quantize.c
 
-OBJ_main= $(OBJ_DIR)/dgif_lib.o \
-	$(OBJ_DIR)/egif_lib.o \
-	$(OBJ_DIR)/gif_err.o \
-	$(OBJ_DIR)/gif_font.o \
-	$(OBJ_DIR)/gif_hash.o \
-	$(OBJ_DIR)/gifalloc.o \
-	$(OBJ_DIR)/main.o \
-	$(OBJ_DIR)/openbsd-reallocarray.o \
-	$(OBJ_DIR)/quantize.o
+OBJ_main= $(SRC_main:%.c=obj/%.o)
+
+# COMPILE main_init_openMP
+SRC_init_openMP= dgif_lib.c \
+	egif_lib.c \
+	gif_err.c \
+	gif_font.c \
+	gif_hash.c \
+	gifalloc.c \
+	main_init_openMP.c \
+	openbsd-reallocarray.c \
+	quantize.c
+
+OBJ_init_openMP= $(SRC_init_openMP:%.c=obj/%.o)
 	
 # COMPILE test
 SRC_test= dgif_lib.c \
@@ -39,15 +44,7 @@ SRC_test= dgif_lib.c \
 	openbsd-reallocarray.c \
 	quantize.c
 
-OBJ_test= $(OBJ_DIR)/dgif_lib.o \
-	$(OBJ_DIR)/egif_lib.o \
-	$(OBJ_DIR)/gif_err.o \
-	$(OBJ_DIR)/gif_font.o \
-	$(OBJ_DIR)/gif_hash.o \
-	$(OBJ_DIR)/gifalloc.o \
-	$(OBJ_DIR)/test.o \
-	$(OBJ_DIR)/openbsd-reallocarray.o \
-	$(OBJ_DIR)/quantize.o
+OBJ_test= $(SRC_test:%.c=obj/%.o)
 
 # COMPILE main_paral_per_img_static_alloc_without_copy
 SRC_img_without_copy= dgif_lib.c \
@@ -60,15 +57,7 @@ SRC_img_without_copy= dgif_lib.c \
 	openbsd-reallocarray.c \
 	quantize.c
 
-OBJ_img_without_copy= $(OBJ_DIR)/dgif_lib.o \
-	$(OBJ_DIR)/egif_lib.o \
-	$(OBJ_DIR)/gif_err.o \
-	$(OBJ_DIR)/gif_font.o \
-	$(OBJ_DIR)/gif_hash.o \
-	$(OBJ_DIR)/gifalloc.o \
-	$(OBJ_DIR)/main_paral_per_img_static_alloc_without_copy.o \
-	$(OBJ_DIR)/openbsd-reallocarray.o \
-	$(OBJ_DIR)/quantize.o
+OBJ_img_without_copy= $(SRC_img_without_copy:%.c=obj/%.o)
 
 #  COMPILE main_paral_per_img_static_alloc
 SRC_img= dgif_lib.c \
@@ -81,15 +70,7 @@ SRC_img= dgif_lib.c \
 	openbsd-reallocarray.c \
 	quantize.c
 
-OBJ_img= $(OBJ_DIR)/dgif_lib.o \
-	$(OBJ_DIR)/egif_lib.o \
-	$(OBJ_DIR)/gif_err.o \
-	$(OBJ_DIR)/gif_font.o \
-	$(OBJ_DIR)/gif_hash.o \
-	$(OBJ_DIR)/gifalloc.o \
-	$(OBJ_DIR)/main_paral_per_img_static_alloc.o \
-	$(OBJ_DIR)/openbsd-reallocarray.o \
-	$(OBJ_DIR)/quantize.o
+OBJ_img= $(SRC_img:%.c=obj/%.o)
 
 # Compile main_paral_columns_mpi_working
 SRC_columns_mpi= dgif_lib.c \
@@ -102,18 +83,10 @@ SRC_columns_mpi= dgif_lib.c \
 	openbsd-reallocarray.c \
 	quantize.c
 
-OBJ_columns_mpi= $(OBJ_DIR)/dgif_lib.o \
-	$(OBJ_DIR)/egif_lib.o \
-	$(OBJ_DIR)/gif_err.o \
-	$(OBJ_DIR)/gif_font.o \
-	$(OBJ_DIR)/gif_hash.o \
-	$(OBJ_DIR)/gifalloc.o \
-	$(OBJ_DIR)/main_paral_columns_mpi_working.o \
-	$(OBJ_DIR)/openbsd-reallocarray.o \
-	$(OBJ_DIR)/quantize.o
+OBJ_columns_mpi= $(SRC_columns_mpi:%.c=obj/%.o)
 
 
-all: $(OBJ_DIR) sobelf_main sobelf_img_without_copy sobelf_img sobelf_columns_mpi
+all: $(OBJ_DIR) sobelf_main sobelf_img_without_copy sobelf_img sobelf_columns_mpi sobelf_openMP
 
 $(OBJ_DIR):
 	mkdir $(OBJ_DIR)
@@ -132,6 +105,10 @@ sobelf_img:$(OBJ_img)
 
 sobelf_columns_mpi:$(OBJ_columns_mpi)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+sobelf_openMP:$(OBJ_init_openMP)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	# $(CC) $(CFLAGS) -o $@ -fopenmp $^ $(LDFLAGS)
 
 test:$(OBJ_test)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
