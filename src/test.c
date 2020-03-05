@@ -2160,18 +2160,24 @@ void test_scatterv(int argc, char **argv){
         printf( "N should be == 2" );
         MPI_Abort( MPI_COMM_WORLD, 1 );
     }
+    
+    if(rank == 0){
+        int p_1[] = {1,2,3,4};
+        int fictif[] = {1,2,3,4};
+        int p_2[] = {5,6,7,8};
+        int send_count[] = {4,4};
+        int displ[] = {0,p_2 - p_1};
 
-    int p_1[] = {1,2,3,4};
-    int p_2[] = {5,6,7,8};
-    // int *p_tot[] = {p_1, p_2};
-    int p_tot[] = {1,2,3,4,5,6,7,8,9};
-    int send_count[] = {4,4};
-    int displ[] = {0,4};
+        int *receiver = (int *)malloc( 4 * sizeof(int) );
+        MPI_Scatterv(p_1, send_count, displ, MPI_INT, receiver, 4, MPI_INT, 0, MPI_COMM_WORLD);
+        printf("%d : %d %d %d %d\n", rank, receiver[0], receiver[1], receiver[2], receiver[3]);
+    }
+    else {
+        int *receiver = (int *)malloc( 4 * sizeof(int) );
+        MPI_Scatterv(NULL, NULL, NULL, MPI_INT, receiver, 4, MPI_INT, 0, MPI_COMM_WORLD);
+        printf("%d : %d %d %d %d\n", rank, receiver[0], receiver[1], receiver[2], receiver[3]);
+    }
 
-    int *receiver = (int *)malloc( 4 * sizeof(int) );
-    MPI_Scatterv(p_tot, send_count, displ, MPI_INT, receiver, 4, MPI_INT, 0, MPI_COMM_WORLD);
-
-    printf("%d : %d %d %d %d\n", rank, receiver[0], receiver[1], receiver[2], receiver[3]);
     MPI_Finalize();
 }
 
