@@ -848,14 +848,14 @@ MPI_Datatype create_column(int width, int height){
     return COLUMN;
 }
 
-void fill_info_part_for_one_image(img_info info_array[],int n_parts, int parts_done, int img_n, int width, int height){
+void fill_info_part_for_one_image(img_info info_array[],int n_parts, int img_n, int width, int height){
 
     int standard_n_columns = width / n_parts;
     int last_col = width - standard_n_columns * (n_parts-1);
 
     int k;
     for (k = 0; k < n_parts; k++){
-        int part_global_num = parts_done + k;
+        int part_global_num = img_n * n_parts + k;
 
         // GENERAL INFOS
         info_array[part_global_num].height = height;
@@ -888,40 +888,34 @@ void fill_info_part_for_one_image(img_info info_array[],int n_parts, int parts_d
     }
 }
 
-void fill_pixel_column_pointers_for_one_image(pixel* pixel_array[], pixel *img_pixel, int n_parts, int parts_done, int img_n, img_info infos[]){
+void fill_pixel_column_pointers_for_one_image(pixel* pixel_array[], pixel *img_pixel, int n_parts, int img_n, img_info infos[]){
     int i; 
     pixel *head = img_pixel;
     for (i=0; i < n_parts; i++){
-        int part_global_number = parts_done + i;
+        int part_global_number = img_n * n_parts + i;
         pixel_array[part_global_number] = head;
         head += infos[part_global_number].n_columns;
     }
 }
 
-void fill_tables(img_info info_array[], pixel* pixel_array[], MPI_Datatype datatypes[], animated_gif * img, int n_parts_by_image[], int n_images){
+void fill_tables(img_info info_array[], pixel* pixel_array[], MPI_Datatype datatypes[], animated_gif * img, int n_parts_by_image, int n_images){
 
     animated_gif image = *img;
     int i;
 
-    int parts_done = 0;
     // #pragma omp parallel default(none) private(i) shared(info_array, pixel_array, datatypes, img, n_parts_by_image, n_images, image)
     // {
     //     #pragma omp for
             for (i = 0; i < n_images; i++){
 
-                int n_parts_this_img = n_parts_by_image[i];
-
                 // FILL DATATYPE : Create this image's column datatype (handling different heights)
                 datatypes[i] = create_column(image.width[i], image.height[i]);
 
                 // FILL INFO_ARRAY : create all the img_info of the parts of this image
-                fill_info_part_for_one_image(info_array, n_parts_this_img, parts_done, i, image.width[i], image.height[i]);
+                fill_info_part_for_one_image(info_array, n_parts_by_image, i, image.width[i], image.height[i]);
 
                 // FILL PIXEL ARRAY : 
-                fill_pixel_column_pointers_for_one_image( pixel_array, image.p[i], n_parts_this_img, parts_done, i, info_array );
-
-                // UPDATE PARTS_DONE
-                parts_done+= n_parts_this_img;
+                fill_pixel_column_pointers_for_one_image( pixel_array, image.p[i], n_parts_by_image, i, info_array );
             }
     // }
 }
@@ -1027,8 +1021,7 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
 void get_heuristic(int *n_rounds, int *n_parts_per_img, int n_process, int n_images){ // First draw of heuristics
     int r = 1, n_parts;
 
-    int test = 0;
-    while(test < 1000){
+    while(1){
         if (n_images % r == 0){ // if the split is possible
             int n_img_per_round = n_images / r;
             for (n_parts=1; n_parts < n_process+1; n_parts++){ // test for all n_parts
@@ -1041,31 +1034,6 @@ void get_heuristic(int *n_rounds, int *n_parts_per_img, int n_process, int n_ima
         }
         r++;
         printf(".");
-    }
-}
-
-void get_heuristic2(int *n_rounds, int *n_parts_per_img, int table_n_img[], int n_process, int n_images, int beta){ // First draw of heuristics
-    int r = 1, n_parts;
-
-    if (n_images < n_process || beta == 0){
-        get_heuristic(n_rounds,n_parts_per_img,n_process, n_images);
-        for (r = 0; r < n_images; r++)
-            table_n_img[r] = *n_parts_per_img;
-    } else {
-        int number_of_rounds = 0;
-        int n_img_last = n_images % n_process;
-        int n_img_solo = n_images - n_img_last;
-        if (n_img_last != 0)
-            get_heuristic(&number_of_rounds,n_parts_per_img,n_process,n_img_last);
-        else
-            *n_parts_per_img = 1;
-        
-        number_of_rounds += n_images / n_process;
-        for (r=0; r < n_img_solo ; r++)
-            table_n_img[r] = 1;
-        for (r = n_img_solo; r < n_images; r++)
-            table_n_img[r] = *n_parts_per_img;
-        *n_rounds = number_of_rounds;
     }
 }
 
@@ -1128,18 +1096,8 @@ int main( int argc, char ** argv ){
         gettimeofday(&t21, NULL);
 
         // Choose how to split images between process
-        int n_parts_per_img[n_images];
-        get_heuristic2(&n_rounds, &n_parts, n_parts_per_img, n_process,n_images,1);
-        printf(" ----> For %d images and %d process, the heuristics found %d rounds and repartition of parts: ", n_images, n_process, n_rounds);
-        int counter = 0;
-        for (i=0; i<n_images; i++){
-            printf(" %i", n_parts_per_img[i]);
-            counter += n_parts_per_img[i];
-            if (counter % n_process == 0)
-                printf(" ||");
-        }
-        printf("\n");
-
+        get_heuristic(&n_rounds, &n_parts,n_process,n_images);
+        printf(" ----> For %d images and %d process, the heuristics found %d rounds of %d images splitted in %d\n", n_images, n_process, n_rounds, n_images/n_rounds, n_parts );
 
         // Structures needed for splitting data
         parts_info = (img_info *)malloc(n_parts * n_images * sizeof(img_info));
@@ -1147,7 +1105,7 @@ int main( int argc, char ** argv ){
         COLUMNS = (MPI_Datatype*)malloc(n_images * sizeof(MPI_Datatype));
 
         // Fill_info_parts and pixel_arts and columns 
-        fill_tables(parts_info,parts_pixel,COLUMNS,image,n_parts_per_img, n_images);
+        fill_tables(parts_info,parts_pixel,COLUMNS,image,n_parts, n_images);
 
         printf("_____INITIALIZATION FINISHED\n");
         gettimeofday(&t22, NULL);
@@ -1163,62 +1121,137 @@ int main( int argc, char ** argv ){
         // Initialize
         printf("_____START SENDING PARTS\n");
         int r, j;
+        int n_img_per_round = n_images / n_rounds;
 
         // SENDING THE IMAGE IN PARTS
         MPI_Status status;
         MPI_Request req;
         img_info lol;
 
-        int parts_done = 0;
 
         for(r=0; r < n_rounds; r++){
             
-                gettimeofday(&t31, NULL);
+            gettimeofday(&t31, NULL);
             
-            int n_part_to_send =  n_process;//n_img_per_round * n_parts;
-            int root_part =  parts_done;
+            int n_part_to_send =  n_img_per_round * n_parts;
+            int root_part =  r*n_img_per_round*n_parts;
             img_info *begin_table = parts_info + root_part;
-            parts_done++;
 
-            // Send the part_info to the process
+            // for (j = 0; j < n_part_to_send; j++){
+            //     print_img_info(begin_table[j]);
+            // }
+            // printf("\n");
+            // for (j = 0; j < n_part_to_send; j++){
+            //     print_img_info(*((img_info*)((int*)(begin_table) + n_int_img_info*j)));
+            // }
+            // printf("\n");
+
+            // printf("root will send %i parts to the process\n", n_part_to_send );
+            //MPI_Scatter(begin_table, n_int_img_info, MPI_INT,NULL,0, MPI_INT,0,MPI_COMM_WORLD);
+
             MPI_Scatter(begin_table, n_int_img_info, MPI_INT,&lol,n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
+            // printf("root will has sent %i parts to the process and have int = \n", n_part_to_send);
+            // print_img_info(lol);
 
-                gettimeofday(&t32, NULL);
 
-            // Sending the images
-            for (j=1; j < n_part_to_send; j++){
-                pixel *beg_pixel = parts_pixel[root_part + j] - parts_info[root_part + j].ghost_cells_left;
-                MPI_Send(beg_pixel, parts_info[root_part + j].width, COLUMNS[0], j, 0, MPI_COMM_WORLD);
-                parts_done++;
+            gettimeofday(&t32, NULL);
+             printf("---STEP1----\n");
+
+            // DOING THE ROOT'S PART OF THE JOB
+            // Initialize
+
+            int n_pixels_recv = parts_info[root_part].width * parts_info[root_part].height;
+             printf("---STEP2----\n");
+            pixel *pixel_recv = (pixel *)malloc( n_pixels_recv * sizeof(pixel) );
+             printf("---STEP3----\n");
+            
+
+            pixel *reference = parts_pixel[root_part] - parts_info[root_part].ghost_cells_left;
+             printf("---STEP4----\n\n");
+
+            int table_lengths[n_part_to_send], table_starts[n_part_to_send];
+            for (j=0; j < n_part_to_send; j++){
+                 printf("*");
+                table_lengths[j] = parts_info[root_part + j].width;
+
+                pixel *beginning_of_part = parts_pixel[root_part + j] - parts_info[root_part + j].ghost_cells_left;
+
+                table_starts[j] = ( beginning_of_part - reference );
+
+                printf(" +++ length: %i, distance from ref: %i, pointer address: %p   +++\n", table_lengths[j], table_starts[j], (void*)(reference + table_starts[j]));
             }
 
-            
-            // Prepare receiving it's own data
-            int n_pixels_recv = parts_info[root_part].width * parts_info[root_part].height;
-            pixel *pixel_recv = (pixel *)malloc( n_pixels_recv * sizeof(pixel) );
+             //table_starts[1] = table_starts[0];
+             printf("\n\n---STEP5----\n");
+
+             printf("\n----------------------------------------------\n");
+            printf("----------------------------------------------\n");
+            printf("TEST THAT PROVES OUR TECHNIQUE DOESNT WORK\n");
+                
+            pixel *pointer = parts_pixel[root_part + 1] - parts_info[root_part + 1].ghost_cells_left;
+            int b = pointer - reference;
+            printf("Directly via pointer : \n");
+            sleep(2);
+            print_pixel(*(pointer));
+            printf("\nVia arithmetic : \n");
+            sleep(2);
+            print_pixel(*(reference + (pointer - reference )));
+            printf("\nVia reference pointer + gap : \n");
+            sleep(2);
+            print_pixel(*(reference + b)); // cette ligne plante, meme si au dessus c la même chose
+             printf("\n----------------------------------------------\n");
+             printf("----------------------------------------------\n");
+
+
+            for (j=0; j < n_part_to_send; j++){
+                printf("Part number %i is from address %p to address %p\n", j, (void*)(reference + table_starts[j]), (void*)(reference + table_starts[j] +table_lengths[j]) );
+
+                // void *pt = (void*)(reference + table_starts[j]);
+                // printf("###### %i at adress %p\n", *((int*)pt), pt );
+                // printf("###### %i at adress %p\n", *((int*)(pt+4)), pt+4);
+            }
+
+
+
+            MPI_Scatterv(reference ,table_lengths,table_starts,COLUMNS[0],pixel_recv,n_pixels_recv*3,MPI_INT,0,MPI_COMM_WORLD);
+
+             printf("---> root has sent parts");
+
+            //MPI_Scatter(NULL,0,MPI_INT,&info_recv, n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
+
+            // for (j=1; j < n_part_to_send; j++){
+            //     int part_n = r * n_img_per_round * n_parts + j;
+            //     int img_n = parts_info[part_n].image;
+            //     pixel *beg_pixel = parts_pixel[part_n] - parts_info[part_n].ghost_cells_left;
+
+            //     // MPI_Send(&(parts_info[part_n]), n_int_img_info, MPI_INT, j, 0, MPI_COMM_WORLD);
+            //     MPI_Send(beg_pixel, parts_info[part_n].width, COLUMNS[img_n], j, 0, MPI_COMM_WORLD);
+            //     // printf("Sending part %i from (%i,%i,%i,%i) from pixel %i\n ", part_n, parts_info[part_n].ghost_cells_left,parts_info[part_n].n_columns, parts_info[part_n].ghost_cells_right, parts_info[part_n].width, beg_pixel->b);
+            // }
 
 
             // // Send to itself
-            MPI_Isend(parts_pixel[root_part], parts_info[root_part].width, COLUMNS[0], 0, 0, MPI_COMM_SELF, &req);
-            MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
+            // MPI_Isend(beg_pixel, n_total_columns, COLUMNS[root_img], 0, 0, MPI_COMM_SELF, &req);
+            // MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
 
-                gettimeofday(&t32bis, NULL);
+            gettimeofday(&t32bis, NULL);
 
             //Working part
             call_worker(local_comm, parts_info[root_part], pixel_recv, rank);
 
-                gettimeofday(&t32bisbis, NULL);
+            gettimeofday(&t32bisbis, NULL);
 
             // Receive the job again
             int n_pixels_to_send = parts_info[root_part].n_columns * parts_info[root_part].height;
-            MPI_Isend(pixel_recv, n_pixels_to_send * 3, MPI_INT, 0, status.MPI_TAG, MPI_COMM_SELF, &req);
+            pixel* pixel_middle = pixel_recv; // No ghost_left
+            MPI_Isend(pixel_middle, n_pixels_to_send * 3, MPI_INT, 0, status.MPI_TAG, MPI_COMM_SELF, &req);
             MPI_Recv(parts_pixel[root_part], parts_info[root_part].n_columns, COLUMNS[0], 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
 
-                gettimeofday(&t33, NULL);
+            gettimeofday(&t33, NULL);
 
             // RECEIVING THE PARTS 
             img_info info_recv;
-            for (j=1; j < n_part_to_send ; j++){
+            for (j=0; j < n_img_per_round * n_parts - 1 ; j++){
                 MPI_Recv(&info_recv, n_int_img_info, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
                 pixel *beg_pixel = parts_pixel[info_recv.order];
                 MPI_Recv(beg_pixel, info_recv.n_columns, COLUMNS[info_recv.image], status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
@@ -1227,16 +1260,16 @@ int main( int argc, char ** argv ){
         
         // Mesure performance
         printf("_____FINISHED RECEIVING\n");
-        
-            gettimeofday(&t12, NULL);
+        gettimeofday(&t12, NULL);
 
-        printf_time("total", t11, t12);
-        printf_time("init", t21, t22);
-        printf_time("sending", t31, t32);
-        printf_time("root working init", t32, t32bis);
-        printf_time("root working worker", t32bis, t32bisbis);
-        printf_time("root working receiver", t32bisbis, t33);
-        printf_time("receiving", t33, t12);
+        // printf_time("total", t11, t12);
+
+        // printf_time("init", t21, t22);
+        // printf_time("sending", t31, t32);
+        // printf_time("root working init", t32, t32bis);
+        // printf_time("root working worker", t32bis, t32bisbis);
+        // printf_time("root working receiver", t32bisbis, t33);
+        // printf_time("receiving", t33, t12);
 
 
         if(is_file_performance == 1){
@@ -1251,8 +1284,9 @@ int main( int argc, char ** argv ){
         printf("_____EXPORTED_____\n");
 
         // Stop all process
-        for(i=0; i < n_process; i++)
-           parts_info[i].height = 0;
+        // int buf = 0;
+        for(i=0; i < n_parts * n_img_per_round; i++)
+           parts_info[i].rank = -10;
 
         MPI_Scatter(parts_info, n_int_img_info, MPI_INT,&lol,n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
 
@@ -1262,33 +1296,54 @@ int main( int argc, char ** argv ){
         int n_int_recv;
 
         img_info info_recv;
-        pixel *pixel_recv, *pixel_middle;
+        pixel *pixel_recv;
 
         while(1){
 
             // Check what is sent
+            printf("rank %i is waiting for data\n", rank);
             MPI_Scatter(NULL,0,MPI_INT,&info_recv, n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
             
-            int n_pixels_recv = info_recv.height * info_recv.width;
+            printf("rank %i got image ", rank);
+            print_img_info(info_recv);
+            printf(" --- \n");
 
-            if (n_pixels_recv == 0)
+            if (info_recv.rank == -10)
                 break;
+            
+           // if ((int)(&info_recv) == 1) break;
+
+            // MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            // MPI_Get_count(&status, MPI_INT, &n_int_recv);
+            // if(n_int_recv == 1) // Signal for stop
+            //     break;
+
+            // Receive header
+
+            //MPI_Recv(&info_recv, n_int_img_info, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
+            
+            
+            int n_pixels_recv = info_recv.height *(info_recv.ghost_cells_left + info_recv.n_columns + info_recv.ghost_cells_right);
 
             // Alloc and receive data
             pixel_recv = (pixel *)malloc( n_pixels_recv * sizeof(pixel) );
-            MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT,0, 0, MPI_COMM_WORLD, &status);
+            // MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
+
+
+            MPI_Scatterv(NULL,NULL,NULL,MPI_INT,pixel_recv,n_pixels_recv*3,MPI_INT,0,MPI_COMM_WORLD);
+             //MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT,0, 0, MPI_COMM_WORLD, &status);
 
             // Work
             call_worker(local_comm, info_recv, pixel_recv, rank);
 
             // Send back
-            pixel_middle = pixel_recv + info_recv.ghost_cells_left * info_recv.height;
+            pixel *pixel_middle = pixel_recv + info_recv.ghost_cells_left * info_recv.height;
             int n_pixels_to_send = info_recv.n_columns * info_recv.height;
             MPI_Send(&info_recv, n_int_img_info, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
             MPI_Send(pixel_middle, n_pixels_to_send * 3, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
-        }
 
-        free(pixel_recv);
+            free(pixel_recv);
+        }
     }
     MPI_Finalize();
     return 0;
