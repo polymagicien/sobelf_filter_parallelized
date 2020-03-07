@@ -1111,7 +1111,7 @@ int main( int argc, char ** argv ){
 
         // Choose how to split images between process
         int n_parts_per_img[n_images];
-        get_heuristic2(&n_rounds, &n_parts, n_parts_per_img, n_process,n_images,1);
+        get_heuristic2(&n_rounds, &n_parts, n_parts_per_img, n_process,n_images,0);
         print_heuristics(n_images, n_process, n_rounds, n_parts_per_img);
 
 
@@ -1200,7 +1200,7 @@ int main( int argc, char ** argv ){
         printf_time("total", t11, t12);
 
         if(is_file_performance == 1){
-            FILE *filetow = fopen("performance_jonas", "a");
+            FILE *filetow = fopen("performance_jonas_nobeta", "a");
             double duration = (t12.tv_sec-t11.tv_sec)+((t12.tv_usec-t11.tv_usec)/1e6);
 
             char *name = input_filename;
