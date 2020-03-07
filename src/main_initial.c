@@ -649,7 +649,6 @@ apply_blur_filter( animated_gif * image, int size, int threshold )
         /* Allocate array of new pixels */
         new = (pixel *)malloc(width * height * sizeof( pixel ) ) ;
 
-
         /* Perform at least one blur iteration */
         do
         {
@@ -760,6 +759,8 @@ apply_blur_filter( animated_gif * image, int size, int threshold )
 
         } while ( threshold > 0 && !end ) ;
 
+        printf("niter = %i\n", n_iter);
+
 #if SOBELF_DEBUG
 	printf( "BLUR: number of iterations for image %d\n", n_iter ) ;
 #endif
@@ -860,15 +861,21 @@ main( int argc, char ** argv )
 
 
     int size, rank;
+    char *perf = NULL;
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    int perf_f = 0;
 
     /* Check command-line arguments */
     if ( argc < 3 )
     {
         fprintf( stderr, "Usage: %s input.gif output.gif \n", argv[0] ) ;
         return 1 ;
+    }
+    if (argc >= 4){
+        perf_f = 1;
+        perf = argv[3];
     }
 
     input_filename = argv[1] ;
@@ -904,9 +911,9 @@ main( int argc, char ** argv )
     /* FILTER Timer stop */
     gettimeofday(&t2, NULL);
 
-    duration = (t2.tv_sec -t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
+    double duration_work = (t2.tv_sec -t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
 
-    printf( "SOBEL done in %lf s\n", duration ) ;
+    printf( "SOBEL done in %lf s\n", duration_work ) ;
 
     /* EXPORT Timer start */
     gettimeofday(&t1, NULL);
@@ -920,6 +927,13 @@ main( int argc, char ** argv )
     duration = (t2.tv_sec -t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
 
     printf( "Export done in %lf s in file %s\n", duration, output_filename ) ;
+
+    if (perf_f == 1){
+        FILE *fp = fopen("perf_jojo_init","a");
+        printf("writiiiiiiiiiiing\n");
+        fprintf(fp, "%lf for %s\n", duration_work, input_filename) ;
+        fclose(fp);
+    }
 
 
     MPI_Finalize();

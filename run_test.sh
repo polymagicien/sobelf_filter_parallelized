@@ -6,13 +6,14 @@ if [ "$1" = "on_img" ]
 then
     # 1 : test to run
     # 2 : binary tester
-    # ./run_test m#1 #2
+    # ./run_test #1 #2
     
     let "NODE = 1"
-    let "PROCESSES = 8"
+    let "PROCESSES = 6"
     INPUT_DIR=images/original
     OUTPUT_DIR=images/processed
-    PERFORMANCE_FILE="performance/${2}_N_${NODE}_n_${PROCESSES}.txt"
+    #PERFORMANCE_FILE="performance/${2}_N_${NODE}_n_${PROCESSES}.txt"
+    PERFORMANCE_FILE="perf_init_jonas.txt"
     mkdir $OUTPUT_DIR 2>/dev/null
 
     touch $PERFORMANCE_FILE

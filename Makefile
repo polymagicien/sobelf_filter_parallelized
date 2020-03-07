@@ -20,6 +20,18 @@ SRC_main= dgif_lib.c \
 
 OBJ_main= $(SRC_main:%.c=obj/%.o)
 
+SRC_main_nc= dgif_lib.c \
+	egif_lib.c \
+	gif_err.c \
+	gif_font.c \
+	gif_hash.c \
+	gifalloc.c \
+	main_no_print.c \
+	openbsd-reallocarray.c \
+	quantize.c
+
+OBJ_main_nc= $(SRC_main_nc:%.c=obj/%.o)
+
 # COMPILE main_init_openMP
 SRC_init_openMP= dgif_lib.c \
 	egif_lib.c \
@@ -32,6 +44,19 @@ SRC_init_openMP= dgif_lib.c \
 	quantize.c
 
 OBJ_init_openMP= $(SRC_init_openMP:%.c=obj/%.o)
+
+# COMPILE main_init_openMP
+SRC_initial= dgif_lib.c \
+	egif_lib.c \
+	gif_err.c \
+	gif_font.c \
+	gif_hash.c \
+	gifalloc.c \
+	main_initial.c \
+	openbsd-reallocarray.c \
+	quantize.c
+
+OBJ_initial= $(SRC_initial:%.c=obj/%.o)
 	
 # COMPILE test
 SRC_test= dgif_lib.c \
@@ -97,6 +122,9 @@ $(OBJ_DIR)/%.o : $(SRC_DIR)/%.c
 sobelf_main:$(OBJ_main)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
+sobelf_main_nc:$(OBJ_main_nc)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
 sobelf_img_without_copy:$(OBJ_img_without_copy)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
@@ -109,6 +137,12 @@ sobelf_columns_mpi:$(OBJ_columns_mpi)
 sobelf_openMP:$(OBJ_init_openMP)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	# $(CC) $(CFLAGS) -o $@ -fopenmp $^ $(LDFLAGS)
+
+sobelf_initial:$(OBJ_initial)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	# $(CC) $(CFLAGS) -o $@ -fopenmp $^ $(LDFLAGS)
+
+
 
 test:$(OBJ_test)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)

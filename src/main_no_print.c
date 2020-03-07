@@ -622,7 +622,7 @@ void apply_sobel_filter_one_img_col(int width, int height, pixel *p, pixel *sobe
     int hmu = height - 1;
     int wmu = width - 1;
 
-    #pragma omp for collapse(2)
+    #pragma omp for
         for(k=1; k<wmu; k++)
         {
             for(j=1; j<hmu; j++)
@@ -665,7 +665,7 @@ void apply_sobel_filter_one_img_col(int width, int height, pixel *p, pixel *sobe
             }
         }
 
-    #pragma omp for collapse(2)
+    #pragma omp for
     
         for(k=1; k<wmu; k++)
         {
@@ -693,14 +693,8 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
     int wmu = width - 1;
     int msize = -size;
 
-    struct timeval times[20];
-    int counter = -1;
-
-    gettimeofday(times + (counter++), NULL);
-
-
     // Copy pixels of images in ew 
-    #pragma omp for collapse(2)
+    #pragma omp for
         for(k=0; k<wmu; k++)
         {
             for(j=0; j<hmu; j++)
@@ -711,10 +705,8 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
             }
         }
 
-    gettimeofday(times + (counter++), NULL);
-
         /* Apply blur on top part of image (10%) */
-    #pragma omp for collapse(2)
+    #pragma omp for
         for(k=size; k<end_mid_loop; k++)
         {
             for(j=size; j<begin_loop; j++)
@@ -740,10 +732,9 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
             }
         }
 
-    gettimeofday(times + (counter++), NULL);
     
         /* Copy the middle part of the image */
-    #pragma omp for collapse(2) 
+    #pragma omp for 
         for(k=size; k<end_mid_loop; k++)
         {
             for(j= begin_loop; j< end_loop; j++)
@@ -754,10 +745,9 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
             }
         }
 
-    gettimeofday(times + (counter++), NULL);
-    
+   
         /* Apply blur on the bottom part of the image (10%) */
-    #pragma omp for collapse(2)
+    #pragma omp for
         for(k=size; k<end_mid_loop; k++)
         {
             for(j=end_loop; j<end_last_loop; j++)
@@ -783,8 +773,8 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
             }
         }
 
-    gettimeofday(times + (counter++), NULL);
-    #pragma omp for collapse(2)
+   
+    #pragma omp for
             
             for(k=1; k<wmu; k++)
             {
@@ -813,14 +803,8 @@ int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, i
                 }
             }
 
-    gettimeofday(times + (counter++), NULL);
-
-    printf("Blur decomposition: ");
-    for (j = 0; j < counter-1; j++) {
-        double duration = (times[j+1].tv_sec-times[j].tv_sec)+((times[j+1].tv_usec-times[j].tv_usec)/1e6);
-        printf("%lf ", duration);
-    }
-    printf("\n");
+    
+   
 
 }
 
@@ -986,38 +970,22 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
     pixel_middle_plus = pixel_ghost_right - info_recv.ghost_cells_right * height_recv;
     n_int_ghost_cells = SIZE_STENCIL * height_recv * sizeof(pixel) / sizeof(int);
 
-    printf("process rank: %i has img_info with neighbors: %i %i %i", rank, info_recv.rank, rank_left, rank_right);
-
     int global_rank, local_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &global_rank);
     MPI_Comm_rank(local_comm, &local_rank);
 
-    struct timeval times[20];
-    int counter = 2;
-
     //Used in functions to store
     pixel *interm = (pixel *)malloc(width_recv * height_recv * sizeof( pixel ) );
 
-    gettimeofday(times, NULL);
-
-    #pragma omp parallel default(none) shared(pixel_recv, height_recv, width_recv, times, end_local, end_global, interm, rank_left, rank_right, pixel_ghost_left, pixel_middle, pixel_ghost_right, pixel_middle_plus, n_int_ghost_cells, local_comm, ompi_mpi_op_lor, ompi_mpi_int, status_right, status_left,counter, rank)
+    #pragma omp parallel default(none) shared(pixel_recv, height_recv, width_recv, end_local, end_global, interm, rank_left, rank_right, pixel_ghost_left, pixel_middle, pixel_ghost_right, pixel_middle_plus, n_int_ghost_cells, local_comm, ompi_mpi_op_lor, ompi_mpi_int, status_right, status_left, rank)
     {   
 
         apply_gray_filter_one_img(width_recv, height_recv, pixel_recv);
-        
-        #pragma omp barrier
-        #pragma omp master
-        {
-            gettimeofday(times+1, NULL);
-            printf("finished gray in rank%i\n", rank);
-        }
-
 
         do{
             #pragma omp barrier
             end_local = 1;
             apply_blur_filter_one_iter_col(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20, interm, &end_local);
-            printf("finished one iter blur from %i\n", rank);
 
             #pragma omp barrier
             #pragma omp master
@@ -1036,34 +1004,14 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
                     if( rank_left != -1 )
                         MPI_Recv(pixel_ghost_left, n_int_ghost_cells, MPI_INT, rank_left, MPI_ANY_TAG, local_comm, &status_left);
                 }
-                gettimeofday(times +counter, NULL);
-                counter++;
             }
             #pragma omp barrier
         } while( !end_global);
-        printf("finished blur from %i\n", rank);
         apply_sobel_filter_one_img_col(width_recv, height_recv, pixel_recv, interm);
     }
 
-    printf("finished sobel\n");
-
     // Free struct used in function to store
     free(interm);
-
-    gettimeofday( times +counter , NULL);
-    int i;
-
-    //FILE *fp = fopen("comparaison.txt", "a");
-    //fprintf(fp, "%i; %i; ", local_rank, k) ;
-    printf("part %i:    ", local_rank);
-    for (i = 0; i < counter; i++) {
-        double duration = (times[i+1].tv_sec-times[i].tv_sec)+((times[i+1].tv_usec-times[i].tv_usec)/1e6);
-        printf("%lf ", duration);
-        //fprintf(fp," %lf;", duration);
-    }
-    //fprintf(fp,"\n");
-    printf("\n");
-    //close(fp);
 }
 
 void get_heuristic(int *n_rounds, int *n_parts_per_img, int n_process, int n_images){ // First draw of heuristics
@@ -1136,7 +1084,7 @@ int main( int argc, char ** argv ){
     pixel **parts_pixel = NULL;
     MPI_Datatype *COLUMNS = NULL;
 
-    struct timeval t11, t12, t21, t22, t31, t32, t32bis, t32bisbis, t33;
+    struct timeval t11, t12;
 
     if(argc < 3){ 
         printf("INVALID ARGUMENT\n ./sobelf input_filename output_filename\n");
@@ -1145,7 +1093,7 @@ int main( int argc, char ** argv ){
     if(argc >= 4){
         is_file_performance = 1;
         perf_filename = argv[3];
-    }    
+    }
     char *input_filename = argv[1];
     char *output_filename = argv[2];
 
@@ -1160,7 +1108,6 @@ int main( int argc, char ** argv ){
 
         load_image_from_file(&image, &n_images, input_filename);
         gettimeofday(&t11, NULL);
-        gettimeofday(&t21, NULL);
 
         // Choose how to split images between process
         int n_parts_per_img[n_images];
@@ -1175,9 +1122,6 @@ int main( int argc, char ** argv ){
 
         // Fill_info_parts and pixel_arts and columns 
         fill_tables(parts_info,parts_pixel,COLUMNS,image,n_parts_per_img, n_images);
-
-        printf("_____INITIALIZATION FINISHED\n");
-        gettimeofday(&t22, NULL);
     }
 
 
@@ -1191,7 +1135,6 @@ int main( int argc, char ** argv ){
     if(rank == 0){
         
         // Initialize
-        printf("_____START SENDING PARTS\n");
         int r, j;
 
         // SENDING THE IMAGE IN PARTS
@@ -1201,9 +1144,11 @@ int main( int argc, char ** argv ){
 
         int parts_done = 0;
 
+        for (r=0; r<n_images; r++)
+            printf("%i %i - ", image->width[r], image->height[r]);
+        printf("\n");
+
         for(r=0; r < n_rounds; r++){
-            
-                gettimeofday(&t31, NULL);
             
             int n_part_to_send =  n_process;
             int root_part =  parts_done;
@@ -1218,70 +1163,80 @@ int main( int argc, char ** argv ){
             int ending = n_part_to_send;
             for (j=beginning; j < ending ; j++){
                 pixel *beg_pixel = parts_pixel[root_part + j] - parts_info[root_part + j].ghost_cells_left;
-                MPI_Send(beg_pixel, parts_info[root_part + j].width, COLUMNS[0], j + (1 - root_work), 0, MPI_COMM_WORLD);
+                MPI_Send(beg_pixel, parts_info[root_part + j].width, COLUMNS[parts_info[root_part + j].image], j + (1 - root_work), 0, MPI_COMM_WORLD);
                 parts_done++;
             }
-            
-                gettimeofday(&t32, NULL);
             
             if (root_work){
                 // Prepare receiving it's own data && Send to itself
                 int n_pixels_recv = parts_info[root_part].width * parts_info[root_part].height;
                 pixel *pixel_recv = (pixel *)malloc( n_pixels_recv * sizeof(pixel) );
-                MPI_Isend(parts_pixel[root_part], parts_info[root_part].width, COLUMNS[0], 0, 0, MPI_COMM_SELF, &req);
+                MPI_Isend(parts_pixel[root_part], parts_info[root_part].width, COLUMNS[parts_info[root_part].image], 0, 0, MPI_COMM_SELF, &req);
                 MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
-
-                gettimeofday(&t32bis, NULL);
 
                 //Working part
                 call_worker(local_comm, parts_info[root_part], pixel_recv, rank);
 
-                gettimeofday(&t32bisbis, NULL);
-
                 // Receive the job again
                 int n_pixels_to_send = parts_info[root_part].n_columns * parts_info[root_part].height;
                 MPI_Isend(pixel_recv, n_pixels_to_send * 3, MPI_INT, 0, status.MPI_TAG, MPI_COMM_SELF, &req);
-                MPI_Recv(parts_pixel[root_part], parts_info[root_part].n_columns, COLUMNS[0], 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
-             } else {
-                gettimeofday(&t32bis, NULL);
-                gettimeofday(&t32bisbis, NULL);
+                MPI_Recv(parts_pixel[root_part], parts_info[root_part].n_columns, COLUMNS[parts_info[root_part].image], 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
              }
-             
-                gettimeofday(&t33, NULL);
 
             // RECEIVING THE PARTS 
+            //printf("receiving in round %i\n", r);
             for (j=beginning; j < ending; j++){
+                
                 MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD,&status);
                 int pn = status.MPI_SOURCE - (1-root_work);
-                MPI_Recv(parts_pixel[root_part + pn], parts_info[root_part + pn].n_columns, COLUMNS[0], status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
+                //printf(" from %i \n", pn);
+                MPI_Recv(parts_pixel[root_part + pn], parts_info[root_part + pn].n_columns, COLUMNS[parts_info[root_part + pn].image], status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
+                    
             }
         } 
-        
-        // Mesure performance
-        printf("_____FINISHED RECEIVING\n");
         
             gettimeofday(&t12, NULL);
 
         printf_time("total", t11, t12);
-        printf_time("init", t21, t22);
-        printf_time("sending", t31, t32);
-        printf_time("root working init", t32, t32bis);
-        printf_time("root working worker", t32bis, t32bisbis);
-        printf_time("root working receiver", t32bisbis, t33);
-        printf_time("receiving", t33, t12);
-
 
         if(is_file_performance == 1){
-            fp = fopen(perf_filename, "a");
+            FILE *filetow = fopen("performance_jonas", "a");
             double duration = (t12.tv_sec-t11.tv_sec)+((t12.tv_usec-t11.tv_usec)/1e6);
-            fprintf(fp, "%lf (n = %d, n_images = %d) for %s\n", duration, n_process, n_images, input_filename) ;
-            fclose(fp);
+
+            char *name = input_filename;
+            printf("%s\n", name);
+            printf("%s", perf_filename);
+
+            fprintf(filetow, "%lf (n = %d, n_images = %d) for %s\n", duration, n_process, n_images, name) ;
+            fclose(filetow);
         }
+
+        // for (j = 0; j < n_images; j++){
+        //     printf("Height: %i, width: %i img %i", image->height[j], image->height[j], j);
+        //     for (r = 0; r < image->width[j] * image->height[j]; r++){
+        //         //print_pixel(*();
+        //         pixel p = *(image->p[j] + r);
+        //         int ligne = r/parts_info[0].width;
+        //         int colonne = r%parts_info[0].width;
+        //         if ((image->p[j] + r)->g != (image->p[j] + r)->r || (image->p[j] + r)->b != (image->p[j] + r)->r || (image->p[j] + r)->b !=(image->p[j] + r)->g){
+        //             (image->p[j] + r)->b = 255;
+        //             (image->p[j] + r)->g = 0;
+        //             (image->p[j] + r)->r = 0;
+        //         }
+        //         if ((image->p[j] + r)->b != 255 && (image->p[j] + r)->b != 0){
+        //             //printf("image: %i, ligne: %i, colonne: %i\n", 0, ligne, colonne );
+        //             (image->p[j] + r)->b = 0;
+        //             (image->p[j] + r)->g = 0;
+        //             (image->p[j] + r)->r = 255;
+        //         }
+
+        //     }
+        //     printf("\n");
+        // }
 
         // Export the gif
         if ( !store_pixels( output_filename, image ) )
             return 1 ;
-        printf("_____EXPORTED_____\n");
 
         // Stop all process
         for(i=0; i < n_process + 1-root_work; i++)
