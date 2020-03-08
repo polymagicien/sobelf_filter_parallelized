@@ -1106,6 +1106,8 @@ int main( int argc, char ** argv ){
     // FIRST ALLOCATIONS
     int n_int_img_info = sizeof(img_info) / sizeof(int);
     int n_parts, n_images, n_rounds;
+    int height = 0;
+    int width = 0;
     MPI_Comm local_comm;
     int i;
     int root_work = 1; /// to set if you want that the root process work or not
@@ -1136,6 +1138,8 @@ int main( int argc, char ** argv ){
             n_process--;
 
         load_image_from_file(&image, &n_images, input_filename);
+        height = image->height[0];
+        width = image->width[0];
         gettimeofday(&t11, NULL);
 
         // Choose how to split images between process
@@ -1229,7 +1233,7 @@ int main( int argc, char ** argv ){
             FILE *filetow = fopen("perf_times_with_threads", "a");
             double duration = (t12.tv_sec-t11.tv_sec)+((t12.tv_usec-t11.tv_usec)/1e6);
             char *name = input_filename;
-            fprintf(filetow, "%lf; process=; %d, threads=; %i; for %s\n", duration, n_process, num_threads, name) ;
+            fprintf(filetow, "%lf; process=; %d; threads=; %d; for %s; n_images=; %d; w=; %d; h=; %d; \n", duration, n_process, num_threads, name, n_images, width, height) ;
             fclose(filetow);
         }
 
@@ -1271,7 +1275,7 @@ int main( int argc, char ** argv ){
             pixel_middle = pixel_recv + info_recv.ghost_cells_left * info_recv.height;
             int n_pixels_to_send = info_recv.n_columns * info_recv.height;
             MPI_Send(pixel_middle, n_pixels_to_send * 3, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
-            
+
             free(pixel_recv);
         }
     }
