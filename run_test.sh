@@ -28,6 +28,36 @@ then
     done
 fi
 
+if [ "$1" = "on_img_threads" ]
+then
+    # 1 : test to run
+    # 2 : binary tester
+    # ./run_test #1 #2 
+    
+    let "NODE = 1"
+    let "PROCESSES = 1"
+    let "FROM=1"
+    let "TO=8"
+    INPUT_DIR=images/original
+    OUTPUT_DIR=images/processed
+    #PERFORMANCE_FILE="performance/${2}_N_${NODE}_n_${PROCESSES}.txt"
+    PERFORMANCE_FILE="perf_init_jonas.txt"
+    mkdir $OUTPUT_DIR 2>/dev/null
+
+    touch $PERFORMANCE_FILE
+    rm $PERFORMANCE_FILE
+
+    echo $PERFORMANCE_FILE
+    for THREADS in $(seq $FROM $TO)
+    do
+        for i in $INPUT_DIR/*gif ; do
+            dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
+            echo "Running test on $i -> $dest_filename"
+            OMP_NUM_THREADS=$THREADS salloc -N $NODE -c $THREADS -n $PROCESSES mpirun ./$2 $i $dest_filename $PERFORMANCE_FILE
+        done
+    done
+fi
+
 if [ "$1" = "on_processes" ]
 then
     # 1 : test to run

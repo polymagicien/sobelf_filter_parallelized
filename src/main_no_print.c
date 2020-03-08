@@ -1144,10 +1144,6 @@ int main( int argc, char ** argv ){
 
         int parts_done = 0;
 
-        for (r=0; r<n_images; r++)
-            printf("%i %i - ", image->width[r], image->height[r]);
-        printf("\n");
-
         for(r=0; r < n_rounds; r++){
             
             int n_part_to_send =  n_process;
@@ -1199,40 +1195,20 @@ int main( int argc, char ** argv ){
 
         printf_time("total", t11, t12);
 
+        int num_threads = 0;
+        #pragma omp parallel
+        {
+            num_threads = omp_get_num_threads();
+        }
+
         if(is_file_performance == 1){
-            FILE *filetow = fopen("performance_jonas_nobeta", "a");
+            FILE *filetow = fopen("perf_times_with_threads", "a");
             double duration = (t12.tv_sec-t11.tv_sec)+((t12.tv_usec-t11.tv_usec)/1e6);
-
             char *name = input_filename;
-            printf("%s\n", name);
-            printf("%s", perf_filename);
-
-            fprintf(filetow, "%lf (n = %d, n_images = %d) for %s\n", duration, n_process, n_images, name) ;
+            fprintf(filetow, "%lf; process=; %d, threads=; %i; for %s\n", duration, n_process, num_threads, name) ;
             fclose(filetow);
         }
 
-        // for (j = 0; j < n_images; j++){
-        //     printf("Height: %i, width: %i img %i", image->height[j], image->height[j], j);
-        //     for (r = 0; r < image->width[j] * image->height[j]; r++){
-        //         //print_pixel(*();
-        //         pixel p = *(image->p[j] + r);
-        //         int ligne = r/parts_info[0].width;
-        //         int colonne = r%parts_info[0].width;
-        //         if ((image->p[j] + r)->g != (image->p[j] + r)->r || (image->p[j] + r)->b != (image->p[j] + r)->r || (image->p[j] + r)->b !=(image->p[j] + r)->g){
-        //             (image->p[j] + r)->b = 255;
-        //             (image->p[j] + r)->g = 0;
-        //             (image->p[j] + r)->r = 0;
-        //         }
-        //         if ((image->p[j] + r)->b != 255 && (image->p[j] + r)->b != 0){
-        //             //printf("image: %i, ligne: %i, colonne: %i\n", 0, ligne, colonne );
-        //             (image->p[j] + r)->b = 0;
-        //             (image->p[j] + r)->g = 0;
-        //             (image->p[j] + r)->r = 255;
-        //         }
-
-        //     }
-        //     printf("\n");
-        // }
 
         // Export the gif
         if ( !store_pixels( output_filename, image ) )
