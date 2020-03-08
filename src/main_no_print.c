@@ -1069,6 +1069,12 @@ int main( int argc, char ** argv ){
     MPI_Comm_size(MPI_COMM_WORLD, &n_process);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+    int num_threads = 0;
+    #pragma omp parallel
+    {
+        num_threads = omp_get_num_threads();
+    }
+
     // Save performances
     FILE *fp;
     int is_file_performance = 0;
@@ -1111,7 +1117,7 @@ int main( int argc, char ** argv ){
 
         // Choose how to split images between process
         int n_parts_per_img[n_images];
-        get_heuristic2(&n_rounds, &n_parts, n_parts_per_img, n_process,n_images,0);
+        get_heuristic2(&n_rounds, &n_parts, n_parts_per_img, n_process,n_images,1);
         print_heuristics(n_images, n_process, n_rounds, n_parts_per_img);
 
 
@@ -1195,11 +1201,6 @@ int main( int argc, char ** argv ){
 
         printf_time("total", t11, t12);
 
-        int num_threads = 0;
-        #pragma omp parallel
-        {
-            num_threads = omp_get_num_threads();
-        }
 
         if(is_file_performance == 1){
             FILE *filetow = fopen("perf_times_with_threads", "a");
