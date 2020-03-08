@@ -679,7 +679,7 @@ void apply_sobel_filter_one_img_col(int width, int height, pixel *p, pixel *sobe
 
 }
 
-int apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, int threshold, pixel *new, int *end )
+void apply_blur_filter_one_iter_col( int width, int height, pixel *p, int size, int threshold, pixel *new, int *end )
 {
     
     int j, k ;
@@ -952,6 +952,30 @@ void print_heuristics(int n_images, int n_process, int n_rounds, int n_parts_per
 
 /****************************************************************************************************************************************************/
 
+void call_worker_one_thread(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int rank){ // Function to handle one part of an image
+    int end_local = 1;
+    int height_recv = info_recv.height;
+    int width_recv = info_recv.width;
+
+    int global_rank, local_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &global_rank);
+    MPI_Comm_rank(local_comm, &local_rank);
+
+    //Used in functions to store
+    pixel *interm = (pixel *)malloc(width_recv * height_recv * sizeof( pixel ) );
+
+    apply_gray_filter_one_img(width_recv, height_recv, pixel_recv);
+    do{
+        end_local = 1;
+        apply_blur_filter_one_iter_col(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20, interm, &end_local);
+    } while( !end_local);
+    apply_sobel_filter_one_img_col(width_recv, height_recv, pixel_recv, interm);
+    
+
+    free(interm);
+}
+
+
 void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int rank){ // Function to handle one part of an image
     pixel *pixel_ghost_left, *pixel_ghost_right, *pixel_middle, *pixel_middle_plus;
     int end_local, end_global;
@@ -1035,7 +1059,7 @@ void get_heuristic(int *n_rounds, int *n_parts_per_img, int n_process, int n_ima
 }
 
 void get_heuristic2(int *n_rounds, int *n_parts_per_img, int table_n_img[], int n_process, int n_images, int beta){ // First draw of heuristics
-    int r = 1, n_parts;
+    int r = 1;
 
     if (n_images < n_process || beta == 0){
         get_heuristic(n_rounds,n_parts_per_img,n_process, n_images);
@@ -1076,7 +1100,6 @@ int main( int argc, char ** argv ){
     }
 
     // Save performances
-    FILE *fp;
     int is_file_performance = 0;
     char * perf_filename ;
     
@@ -1223,7 +1246,6 @@ int main( int argc, char ** argv ){
     }
     else {
         MPI_Status status;
-        int n_int_recv;
 
         img_info info_recv;
         pixel *pixel_recv, *pixel_middle;
@@ -1249,9 +1271,9 @@ int main( int argc, char ** argv ){
             pixel_middle = pixel_recv + info_recv.ghost_cells_left * info_recv.height;
             int n_pixels_to_send = info_recv.n_columns * info_recv.height;
             MPI_Send(pixel_middle, n_pixels_to_send * 3, MPI_INT, status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD);
+            
+            free(pixel_recv);
         }
-
-        free(pixel_recv);
     }
     MPI_Finalize();
     return 0;

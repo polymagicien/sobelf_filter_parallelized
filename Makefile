@@ -111,7 +111,7 @@ SRC_columns_mpi= dgif_lib.c \
 OBJ_columns_mpi= $(SRC_columns_mpi:%.c=obj/%.o)
 
 
-all: $(OBJ_DIR) sobelf_main sobelf_img_without_copy sobelf_img sobelf_columns_mpi sobelf_openMP
+all: $(OBJ_DIR) sobelf_main sobelf_img_without_copy sobelf_img sobelf_columns_mpi sobelf_openMP sobelf_main_nc
 
 $(OBJ_DIR):
 	mkdir $(OBJ_DIR)
