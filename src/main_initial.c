@@ -929,10 +929,10 @@ main( int argc, char ** argv )
     printf( "Export done in %lf s in file %s\n", duration, output_filename ) ;
 
     if (perf_f == 1){
-        FILE *fp = fopen("perf_jojo_init","a");
-        printf("writiiiiiiiiiiing\n");
-        fprintf(fp, "%lf for %s\n", duration_work, input_filename) ;
-        fclose(fp);
+        FILE *filetow = fopen("perf_ref", "a");
+        char *name = input_filename;
+        fprintf(filetow, "time: %lf; process: %d; threads: %d; image: %s; n_images: %d; w: %d; h: %d; beta: %d; \n", duration_work, 1, 1, name, image->n_images, image->width[0], image->height[0],0 ) ;
+        fclose(filetow);
     }
 
 

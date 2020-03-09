@@ -1094,6 +1094,7 @@ int main( int argc, char ** argv ){
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     int num_threads = 0;
+    int beta  = 1;
     #pragma omp parallel
     {
         num_threads = omp_get_num_threads();
@@ -1125,6 +1126,9 @@ int main( int argc, char ** argv ){
         is_file_performance = 1;
         perf_filename = argv[3];
     }
+    if (argc >=5){
+        beta = atoi(argv[4]);
+    }
     char *input_filename = argv[1];
     char *output_filename = argv[2];
 
@@ -1144,7 +1148,7 @@ int main( int argc, char ** argv ){
 
         // Choose how to split images between process
         int n_parts_per_img[n_images];
-        get_heuristic2(&n_rounds, &n_parts, n_parts_per_img, n_process,n_images,1);
+        get_heuristic2(&n_rounds, &n_parts, n_parts_per_img, n_process,n_images,beta);
         print_heuristics(n_images, n_process, n_rounds, n_parts_per_img);
 
 
@@ -1228,12 +1232,17 @@ int main( int argc, char ** argv ){
 
         printf_time("total", t11, t12);
 
+        int proc_node = 8/num_threads;
+        
+        int nodes = n_process/proc_node;
+        if (n_process%proc_node!=0)
+            nodes++;
 
         if(is_file_performance == 1){
-            FILE *filetow = fopen("perf_times_with_threads", "a");
+            FILE *filetow = fopen("perf_writing_full", "a");
             double duration = (t12.tv_sec-t11.tv_sec)+((t12.tv_usec-t11.tv_usec)/1e6);
             char *name = input_filename;
-            fprintf(filetow, "%lf; process=; %d; threads=; %d; for %s; n_images=; %d; w=; %d; h=; %d; \n", duration, n_process, num_threads, name, n_images, width, height) ;
+            fprintf(filetow, "time: %lf; process: %d; threads: %d; node: %d; image: %s; n_images: %d; w: %d; h: %d; beta: %d; \n", duration, n_process, num_threads, nodes, name, n_images, width, height,beta ) ;
             fclose(filetow);
         }
 
