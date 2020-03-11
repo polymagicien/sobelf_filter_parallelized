@@ -1250,7 +1250,7 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
     MPI_Comm_rank(MPI_COMM_WORLD, &global_rank);
     MPI_Comm_rank(local_comm, &local_rank);
 
-    //Used in functions to store
+    // Used in functions to store
     pixel *interm = (pixel *)malloc(width_recv * height_recv * sizeof( pixel ) );
 
     #pragma omp parallel default(none) shared(pixel_recv, height_recv, width_recv, end_local, end_global, interm, rank_left, rank_right, pixel_ghost_left, pixel_middle, pixel_ghost_right, pixel_middle_plus, n_int_ghost_cells, local_comm, ompi_mpi_op_land, ompi_mpi_int, status_right, status_left, rank)
@@ -1392,7 +1392,7 @@ void get_heuristic2(int *n_rounds, int *n_parts_per_img, int table_n_img[], int 
 
 void get_threads_heuristics( int *other_tech_threads, int *number_of_pix, int n_rounds, int num_threads,int n_process, int beta, int n_parts_per_img[]){
     if (beta == 0 || n_parts_per_img[0] != 1 || num_threads == 0){
-        return 0;
+        return;
     } else {
         if (n_rounds -1 > 1){
             int max_img = (n_rounds - 1);
@@ -1430,7 +1430,6 @@ int main( int argc, char ** argv ){
     int height = 0;
     int width = 0;
     MPI_Comm local_comm;
-    int i;
     int root_work = 1; // to set if you want that the root process work or not
     int other_tech_threads = 0, pict_simultaneous = 1; // 
 
