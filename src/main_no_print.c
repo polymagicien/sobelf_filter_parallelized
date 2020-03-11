@@ -1246,6 +1246,18 @@ int main( int argc, char ** argv ){
             fclose(filetow);
         }
 
+        // test if correct
+        animated_gif compared_img;
+        int nn;
+        load_image_from_file(&compared_img, &nn, "images/processed/Campusplan-Hausnr-sobel.gif");
+        int i, j;
+        for(i=0; i<compared_img.width[0] * compared_img.height[0]; i++){
+            int r = compared_img.p[0][i].r;
+            int g = compared_img.p[0][i].g;
+            int b = compared_img.p[0][i].b;
+            if(r != image)
+        }
+
 
         // Export the gif
         if ( !store_pixels( output_filename, image ) )

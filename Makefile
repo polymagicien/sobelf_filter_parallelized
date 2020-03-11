@@ -122,6 +122,9 @@ $(OBJ_DIR)/%.o : $(SRC_DIR)/%.c
 sobelf_main:$(OBJ_main)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
+sobelf_initial:$(OBJ_initial)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
 sobelf_main_nc:$(OBJ_main_nc)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
