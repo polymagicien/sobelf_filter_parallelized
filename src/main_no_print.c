@@ -1001,7 +1001,7 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
     //Used in functions to store
     pixel *interm = (pixel *)malloc(width_recv * height_recv * sizeof( pixel ) );
 
-    #pragma omp parallel default(none) shared(pixel_recv, height_recv, width_recv, end_local, end_global, interm, rank_left, rank_right, pixel_ghost_left, pixel_middle, pixel_ghost_right, pixel_middle_plus, n_int_ghost_cells, local_comm, ompi_mpi_op_lor, ompi_mpi_int, status_right, status_left, rank)
+    #pragma omp parallel default(none) shared(pixel_recv, height_recv, width_recv, end_local, end_global, interm, rank_left, rank_right, pixel_ghost_left, pixel_middle, pixel_ghost_right, pixel_middle_plus, n_int_ghost_cells, local_comm, ompi_mpi_op_land, ompi_mpi_int, status_right, status_left, rank)
     {   
 
         apply_gray_filter_one_img(width_recv, height_recv, pixel_recv);
@@ -1014,7 +1014,7 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
             #pragma omp barrier
             #pragma omp master
             {
-                MPI_Allreduce(&end_local, &end_global, 1, MPI_INT, MPI_LOR, local_comm);
+                MPI_Allreduce(&end_local, &end_global, 1, MPI_INT, MPI_LAND, local_comm);
                 if( !end_global ){
                     // Send left ghost cells, receive rigth ghost cells
                     if( rank_left != -1 )
@@ -1033,6 +1033,58 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
         } while( !end_global);
         apply_sobel_filter_one_img_col(width_recv, height_recv, pixel_recv, interm);
     }
+
+    // Free struct used in function to store
+    free(interm);
+}
+
+void call_worker_solo(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int rank){ // Function to handle one part of an image
+    pixel *pixel_ghost_left, *pixel_ghost_right, *pixel_middle, *pixel_middle_plus;
+    int end_local, end_global;
+    int height_recv, width_recv, rank_left, rank_right;
+    int n_int_ghost_cells;
+    MPI_Status status_left, status_right;
+
+    end_local = 1;
+    height_recv = info_recv.height;
+    width_recv = info_recv.width;
+    rank_left = info_recv.rank_left;
+    rank_right = info_recv.rank_right;
+    pixel_ghost_left = pixel_recv;
+    pixel_middle = pixel_ghost_left + info_recv.ghost_cells_left * height_recv;
+    pixel_ghost_right = pixel_middle + info_recv.n_columns * height_recv;
+    pixel_middle_plus = pixel_ghost_right - info_recv.ghost_cells_right * height_recv;
+    n_int_ghost_cells = SIZE_STENCIL * height_recv * sizeof(pixel) / sizeof(int);
+
+    int global_rank, local_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &global_rank);
+    MPI_Comm_rank(local_comm, &local_rank);
+
+    //Used in functions to store
+    pixel *interm = (pixel *)malloc(width_recv * height_recv * sizeof( pixel ) );
+
+    apply_gray_filter_one_img(width_recv, height_recv, pixel_recv);
+
+    do{
+        end_local = 1;
+        apply_blur_filter_one_iter_col(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20, interm, &end_local);
+
+        MPI_Allreduce(&end_local, &end_global, 1, MPI_INT, MPI_LOR, local_comm);
+        if( !end_global ){
+            // Send left ghost cells, receive rigth ghost cells
+            if( rank_left != -1 )
+                MPI_Send(pixel_middle, n_int_ghost_cells, MPI_INT, rank_left, 0, local_comm);
+            if( rank_right != -1 )
+                MPI_Recv(pixel_ghost_right, n_int_ghost_cells, MPI_INT, rank_right, MPI_ANY_TAG, local_comm, &status_right);
+            
+            // Send right ghost cells, receive left ghost cells  
+            if( rank_right != -1 )
+                MPI_Send(pixel_middle_plus, n_int_ghost_cells, MPI_INT, rank_right, 0, local_comm);
+            if( rank_left != -1 )
+                MPI_Recv(pixel_ghost_left, n_int_ghost_cells, MPI_INT, rank_left, MPI_ANY_TAG, local_comm, &status_left);
+        }
+    } while( !end_global);
+    apply_sobel_filter_one_img_col(width_recv, height_recv, pixel_recv, interm);
 
     // Free struct used in function to store
     free(interm);
@@ -1083,6 +1135,17 @@ void get_heuristic2(int *n_rounds, int *n_parts_per_img, int table_n_img[], int 
     }
 }
 
+void get_threads_heuristics( int *other_tech_threads, int *number_of_pix, int n_rounds, int num_threads,int n_process, int beta, int n_parts_per_img[]){
+    if (beta == 0 || n_parts_per_img[0] != 1 || num_threads == 0){
+        return 0;
+    } else {
+        if (n_rounds -1 > 1){
+            int max_img = (n_rounds - 1);
+            *number_of_pix = n_rounds;
+        }
+    }
+}
+
 int main( int argc, char ** argv ){
 
     // MPI_INIT
@@ -1111,7 +1174,10 @@ int main( int argc, char ** argv ){
     int width = 0;
     MPI_Comm local_comm;
     int i;
-    int root_work = 1; /// to set if you want that the root process work or not
+    int root_work = 1; // to set if you want that the root process work or not
+    int other_tech_threads = 0, pict_simultaneous = 1; // 
+
+
     img_info *parts_info = NULL;
     pixel **parts_pixel = NULL;
     MPI_Datatype *COLUMNS = NULL;
@@ -1150,6 +1216,8 @@ int main( int argc, char ** argv ){
         int n_parts_per_img[n_images];
         get_heuristic2(&n_rounds, &n_parts, n_parts_per_img, n_process,n_images,beta);
         print_heuristics(n_images, n_process, n_rounds, n_parts_per_img);
+
+        get_threads_heuristics(&other_tech_threads,&pict_simultaneous,n_rounds,num_threads,n_process,beta,n_parts_per_img);
 
 
         // Structures needed for splitting data
@@ -1244,18 +1312,6 @@ int main( int argc, char ** argv ){
             char *name = input_filename;
             fprintf(filetow, "time: %lf; process: %d; threads: %d; node: %d; image: %s; n_images: %d; w: %d; h: %d; beta: %d; \n", duration, n_process, num_threads, nodes, name, n_images, width, height,beta ) ;
             fclose(filetow);
-        }
-
-        // test if correct
-        animated_gif compared_img;
-        int nn;
-        load_image_from_file(&compared_img, &nn, "images/processed/Campusplan-Hausnr-sobel.gif");
-        int i, j;
-        for(i=0; i<compared_img.width[0] * compared_img.height[0]; i++){
-            int r = compared_img.p[0][i].r;
-            int g = compared_img.p[0][i].g;
-            int b = compared_img.p[0][i].b;
-            if(r != image)
         }
 
 

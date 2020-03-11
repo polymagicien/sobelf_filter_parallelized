@@ -35,9 +35,9 @@ then
     # ./run_test #1 #2 
     
     let "FROMT=1"
-    let "TOT=8"
+    let "TOT=4"
     let "FROMP=1"
-    let "TOP=10"
+    let "TOP=8"
     let "NODES=1"
     let "PROC_BY_NODE=1"
     let "BETA=0"
@@ -51,27 +51,24 @@ then
     rm $PERFORMANCE_FILE
 
     echo $PERFORMANCE_FILE
-    for BETA in $(seq 0 0)
+    for PROCESSES in $(seq $FROMP $TOP)
     do
-        for PROCESSES in $(seq $FROMP $TOP)
+        for THREADS in $(seq $FROMT $TOT)
         do
-            for THREADS in $(seq $FROMT $TOT)
-            do
-                ((PROC_BY_NODE= 8/$THREADS))
-                ((NODES= $PROCESSES%$PROC_BY_NODE))
-                if [ $NODES = "0" ]
-                then 
-                    ((NODES= $PROCESSES/$PROC_BY_NODE))
-                else
-                    ((NODES= $PROCESSES/$PROC_BY_NODE+1))
-                fi
-                for i in $INPUT_DIR/*gif ; do
-                    dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
-                    echo "Running test on $i -> $dest_filename with $THREADS threads, $PROCESSES processes on $NODES nodes"
-                    for j in $(seq 1 10)
-                    do
-                        OMP_NUM_THREADS=$THREADS salloc -N $NODES -c $THREADS -n $PROCESSES mpirun ./$2 $i $dest_filename $3 $BETA
-                    done
+            ((PROC_BY_NODE= 8/$THREADS))
+            ((NODES= $PROCESSES%$PROC_BY_NODE))
+            if [ $NODES = "0" ]
+            then 
+                ((NODES= $PROCESSES/$PROC_BY_NODE))
+            else
+                ((NODES= $PROCESSES/$PROC_BY_NODE+1))
+            fi
+            for i in $INPUT_DIR/*gif ; do
+                dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
+                echo "Running test on $i -> $dest_filename with $THREADS threads, $PROCESSES processes on $NODES nodes"
+                for j in $(seq 1 3)
+                do
+                    OMP_NUM_THREADS=$THREADS salloc -N $NODES -c $THREADS -n $PROCESSES mpirun ./$2 $i $dest_filename $3 $4
                 done
             done
         done
