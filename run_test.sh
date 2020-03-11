@@ -51,7 +51,7 @@ then
     rm $PERFORMANCE_FILE
 
     echo $PERFORMANCE_FILE
-    for BETA in $(seq 0 1)
+    for BETA in $(seq 0 0)
     do
         for PROCESSES in $(seq $FROMP $TOP)
         do
@@ -70,7 +70,7 @@ then
                     echo "Running test on $i -> $dest_filename with $THREADS threads, $PROCESSES processes on $NODES nodes"
                     for j in $(seq 1 10)
                     do
-                        OMP_NUM_THREADS=$THREADS salloc -N $NODES -c $THREADS -n $PROCESSES mpirun ./$2 $i $dest_filename $PERFORMANCE_FILE $BETA
+                        OMP_NUM_THREADS=$THREADS salloc -N $NODES -c $THREADS -n $PROCESSES mpirun ./$2 $i $dest_filename $3 $BETA
                     done
                 done
             done
@@ -119,11 +119,12 @@ then
     mkdir $OUTPUT_DIR 2>/dev/null
     touch $PERFORMANCE_FILE
     rm $PERFORMANCE_FILE
-
-    for i in $INPUT_DIR/*gif ; do
-        dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
-        echo "Running test on $i -> $dest_filename with $THREADS threads, $PROCESSES processes on $NODES nodes"
-        salloc -N 1 -n 1 mpirun ./$2 $i $dest_filename $PERFORMANCE_FILE
+    for j in $(seq 1 20); do
+        for i in $INPUT_DIR/*gif ; do
+            dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
+            echo "Running test on $i -> $dest_filename with $THREADS threads, $PROCESSES processes on $NODES nodes"
+            salloc -N 1 -n 1 mpirun ./$2 $i $dest_filename $PERFORMANCE_FILE
+        done
     done
 fi
 

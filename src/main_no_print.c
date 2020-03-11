@@ -1239,7 +1239,7 @@ int main( int argc, char ** argv ){
             nodes++;
 
         if(is_file_performance == 1){
-            FILE *filetow = fopen("perf_writing_full", "a");
+            FILE *filetow = fopen(perf_filename, "a");
             double duration = (t12.tv_sec-t11.tv_sec)+((t12.tv_usec-t11.tv_usec)/1e6);
             char *name = input_filename;
             fprintf(filetow, "time: %lf; process: %d; threads: %d; node: %d; image: %s; n_images: %d; w: %d; h: %d; beta: %d; \n", duration, n_process, num_threads, nodes, name, n_images, width, height,beta ) ;
