@@ -12,19 +12,20 @@ typedef struct pixel
 } pixel ;
 
 
-__global__ void apply_blur_filter_one_iter_col( pixel * res, pixel * p, int * end, int width, int height, int size_stencil){
+__global__ void apply_blur_filter_one_iter_col_gpu( pixel * res, pixel * p, int * end, int width, int height, int size_stencil, int threshold){
 
-    int n_block = blockIdx.x + gridDim.x * blockIdx.y + gridDim.x * gridDim.y * blockIdx.z;
+    int n_blocks = blockIdx.x + gridDim.x * blockIdx.y + gridDim.x * gridDim.y * blockIdx.z;
     int n_thread_in_block = threadIdx.x + blockDim.x * threadIdx.y + blockDim.x * blockDim.y * threadIdx.z;
     
-    int n = n_block * blockDim.x * blockDim.y * blockDim.z + n_thread_in_block;
+    int n = n_blocks * blockDim.x * blockDim.y * blockDim.z + n_thread_in_block;
 
     int n_pixels = width * height;
 
     int i = n % height;
-    int i = n / height;
+    int j = n / height;
     int blurred_top = ( i >= size_stencil && i < height/10 && i >= size_stencil && i < width-size_stencil);
-    int blurred_bottom = ( i < height-size_stencil && i >= height*9/10 && i >= size_stencil && i <n_blocks
+    int blurred_bottom = ( i < height-size_stencil && i >= height*9/10 && i >= size_stencil && i < n_blocks );
+    int blurred = blurred_bottom || blurred_top;
 
     if( n < n_pixels){
         // 1. copy
@@ -43,9 +44,9 @@ __global__ void apply_blur_filter_one_iter_col( pixel * res, pixel * p, int * en
             {
                 for ( stencil_j = -size_stencil ; stencil_j <= size_stencil ; stencil_j++ )
                 {
-                    t_r += p[CONV_COL(i+stencil_i, i+stencil_j,height)].r ;
-                    t_g += p[CONV_COL(i+stencil_i, i+stencil_j,height)].g ;
-                    t_b += p[CONV_COL(i+stencil_i, i+stencil_j,height)].b ;
+                    t_r += p[CONV_COL(i+stencil_i, j+stencil_j,height)].r ;
+                    t_g += p[CONV_COL(i+stencil_i, j+stencil_j,height)].g ;
+                    t_b += p[CONV_COL(i+stencil_i, j+stencil_j,height)].b ;
                 }
             }
 
@@ -83,9 +84,8 @@ __global__ void apply_blur_filter_one_iter_col( pixel * res, pixel * p, int * en
 }
 
 // img in COLUMNS
-int gpu_part(int width, int height, pixel *p, int size, int threshold, pixel *res, int *end)
+void gpu_part(int width, int height, pixel *p, int size, int threshold, pixel *res, int *end)
 {
-    int i, j;
     int length = width * height ;
 
     pixel *d_p, *d_res;
@@ -106,7 +106,7 @@ int gpu_part(int width, int height, pixel *p, int size, int threshold, pixel *re
     t.x = n_threads ;
     t.y = 1 ;
 
-    apply_blur_filter_one_iter_col<<<bl,t>>>( d_res, d_p, end, width, height, size_stencil ) ;
+    apply_blur_filter_one_iter_col_gpu<<<bl,t>>>( d_res, d_p, end, width, height, 5, threshold ) ;
     cudaDeviceSynchronize();
     cudaMemcpy(end, d_end, length * sizeof(pixel), cudaMemcpyDeviceToHost);
     // cudaMemcpy(res, d_res, length * sizeof(pixel), cudaMemcpyDeviceToHost);

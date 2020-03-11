@@ -28,9 +28,21 @@ SRC_main_nc= dgif_lib.c \
 	gifalloc.c \
 	main_no_print.c \
 	openbsd-reallocarray.c \
-	quantize.c
+	quantize.c \
+	gpu.cu
 
-OBJ_main_nc= $(SRC_main_nc:%.c=obj/%.o)
+OBJ_main_nc= $(OBJ_DIR)/dgif_lib.o \
+	$(OBJ_DIR)/egif_lib.o \
+	$(OBJ_DIR)/gif_err.o \
+	$(OBJ_DIR)/gif_font.o \
+	$(OBJ_DIR)/gif_hash.o \
+	$(OBJ_DIR)/gifalloc.o \
+	$(OBJ_DIR)/main_no_print.o \
+	$(OBJ_DIR)/openbsd-reallocarray.o \
+	$(OBJ_DIR)/quantize.o \
+	$(OBJ_DIR)/gpu.o
+
+# OBJ_main_nc= $(SRC_main_nc:%.c=obj/%.o)
 
 # COMPILE main_init_openMP
 SRC_init_openMP= dgif_lib.c \
@@ -119,6 +131,9 @@ $(OBJ_DIR):
 $(OBJ_DIR)/%.o : $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $^
 
+$(OBJ_DIR)/%.o : $(SRC_DIR)/%.cu
+	nvcc -o $@ $^
+
 sobelf_main:$(OBJ_main)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
@@ -126,7 +141,8 @@ sobelf_initial:$(OBJ_initial)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 sobelf_main_nc:$(OBJ_main_nc)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	$(CC) $(CFLAGS) -L/usr/local/cuda/lib64 -lcudart -o $@ $^ $(LDFLAGS)
+
 
 sobelf_img_without_copy:$(OBJ_img_without_copy)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
@@ -141,9 +157,6 @@ sobelf_openMP:$(OBJ_init_openMP)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 	# $(CC) $(CFLAGS) -o $@ -fopenmp $^ $(LDFLAGS)
 
-sobelf_initial:$(OBJ_initial)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-	# $(CC) $(CFLAGS) -o $@ -fopenmp $^ $(LDFLAGS)
 
 
 
