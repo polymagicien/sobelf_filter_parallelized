@@ -601,6 +601,8 @@ void INV_CONV(int *n_row, int *n_col, int i, int width){
     *n_col = i % width;
 }
 
+// BASIC FUNCTIONS
+
 void apply_gray_filter_initial( animated_gif * image )
 {
     int i, j ;
@@ -761,10 +763,6 @@ void apply_blur_filter_initial( animated_gif * image, int size, int threshold )
 
         // printf("niter = %i\n", n_iter);
 
-#if SOBELF_DEBUG
-	printf( "BLUR: number of iterations for image %d\n", n_iter ) ;
-#endif
-
         free (new) ;
     }
 
@@ -846,8 +844,238 @@ void apply_sobel_filter_initial( animated_gif * image )
 
 }
 
+// BASIC FUNCTIONS FOR ONE IMAGE
 
 
+void apply_gray_filter_initial_one_image( animated_gif * image, int i )
+{
+    int j ;
+    pixel ** p ;
+
+    p = image->p ;
+
+    for ( j = 0 ; j < image->width[i] * image->height[i] ; j++ )
+    {
+        int moy ;
+
+        moy = (p[i][j].r + p[i][j].g + p[i][j].b)/3 ;
+        if ( moy < 0 ) moy = 0 ;
+        if ( moy > 255 ) moy = 255 ;
+
+        p[i][j].r = moy ;
+        p[i][j].g = moy ;
+        p[i][j].b = moy ;
+    }
+}
+
+void apply_blur_filter_initial_one_image( animated_gif * image, int size, int threshold, int i )
+{
+    int j, k ;
+    int width, height ;
+    int end = 0 ;
+    int n_iter = 0 ;
+
+    pixel ** p ;
+    pixel * new ;
+
+    /* Get the pixels of all images */
+    p = image->p ;
+
+    n_iter = 0 ;
+    width = image->width[i] ;
+    height = image->height[i] ;
+
+    /* Allocate array of new pixels */
+    new = (pixel *)malloc(width * height * sizeof( pixel ) ) ;
+
+    /* Perform at least one blur iteration */
+    do
+    {
+        end = 1 ;
+        n_iter++ ;
+
+        // Copy pixels of images in ew 
+        for(j=0; j<height-1; j++)
+        {
+            for(k=0; k<width-1; k++)
+            {
+                new[CONV(j,k,width)].r = p[i][CONV(j,k,width)].r ;
+                new[CONV(j,k,width)].g = p[i][CONV(j,k,width)].g ;
+                new[CONV(j,k,width)].b = p[i][CONV(j,k,width)].b ;
+            }
+        }
+
+        /* Apply blur on top part of image (10%) */
+        for(j=size; j<height/10-size; j++)
+        {
+            for(k=size; k<width-size; k++)
+            {
+                int stencil_j, stencil_k ;
+                int t_r = 0 ;
+                int t_g = 0 ;
+                int t_b = 0 ;
+
+                for ( stencil_j = -size ; stencil_j <= size ; stencil_j++ )
+                {
+                    for ( stencil_k = -size ; stencil_k <= size ; stencil_k++ )
+                    {
+                        t_r += p[i][CONV(j+stencil_j,k+stencil_k,width)].r ;
+                        t_g += p[i][CONV(j+stencil_j,k+stencil_k,width)].g ;
+                        t_b += p[i][CONV(j+stencil_j,k+stencil_k,width)].b ;
+                    }
+                }
+
+                new[CONV(j,k,width)].r = t_r / ( (2*size+1)*(2*size+1) ) ;
+                new[CONV(j,k,width)].g = t_g / ( (2*size+1)*(2*size+1) ) ;
+                new[CONV(j,k,width)].b = t_b / ( (2*size+1)*(2*size+1) ) ;
+            }
+        }
+
+        /* Copy the middle part of the image */
+        for(j=height/10-size; j<height*0.9+size; j++)
+        {
+            for(k=size; k<width-size; k++)
+            {
+                new[CONV(j,k,width)].r = p[i][CONV(j,k,width)].r ; 
+                new[CONV(j,k,width)].g = p[i][CONV(j,k,width)].g ; 
+                new[CONV(j,k,width)].b = p[i][CONV(j,k,width)].b ; 
+            }
+        }
+
+        /* Apply blur on the bottom part of the image (10%) */
+        for(j=height*0.9+size; j<height-size; j++)
+        {
+            for(k=size; k<width-size; k++)
+            {
+                int stencil_j, stencil_k ;
+                int t_r = 0 ;
+                int t_g = 0 ;
+                int t_b = 0 ;
+
+                for ( stencil_j = -size ; stencil_j <= size ; stencil_j++ )
+                {
+                    for ( stencil_k = -size ; stencil_k <= size ; stencil_k++ )
+                    {
+                        t_r += p[i][CONV(j+stencil_j,k+stencil_k,width)].r ;
+                        t_g += p[i][CONV(j+stencil_j,k+stencil_k,width)].g ;
+                        t_b += p[i][CONV(j+stencil_j,k+stencil_k,width)].b ;
+                    }
+                }
+
+                new[CONV(j,k,width)].r = t_r / ( (2*size+1)*(2*size+1) ) ;
+                new[CONV(j,k,width)].g = t_g / ( (2*size+1)*(2*size+1) ) ;
+                new[CONV(j,k,width)].b = t_b / ( (2*size+1)*(2*size+1) ) ;
+            }
+        }
+
+        for(j=1; j<height-1; j++)
+        {
+            for(k=1; k<width-1; k++)
+            {
+
+                float diff_r ;
+                float diff_g ;
+                float diff_b ;
+
+                diff_r = (new[CONV(j  ,k  ,width)].r - p[i][CONV(j  ,k  ,width)].r) ;
+                diff_g = (new[CONV(j  ,k  ,width)].g - p[i][CONV(j  ,k  ,width)].g) ;
+                diff_b = (new[CONV(j  ,k  ,width)].b - p[i][CONV(j  ,k  ,width)].b) ;
+
+                if ( diff_r > threshold || -diff_r > threshold 
+                        ||
+                            diff_g > threshold || -diff_g > threshold
+                            ||
+                            diff_b > threshold || -diff_b > threshold
+                    ) {
+                    end = 0 ;
+                }
+
+                p[i][CONV(j  ,k  ,width)].r = new[CONV(j  ,k  ,width)].r ;
+                p[i][CONV(j  ,k  ,width)].g = new[CONV(j  ,k  ,width)].g ;
+                p[i][CONV(j  ,k  ,width)].b = new[CONV(j  ,k  ,width)].b ;
+            }
+        }
+
+    } while ( threshold > 0 && !end ) ;
+
+    // printf("niter = %i\n", n_iter);
+
+    free (new) ;
+}
+
+void apply_sobel_filter_initial_one_image( animated_gif * image, int i )
+{
+    int j, k ;
+    int width, height ;
+
+    pixel ** p ;
+
+    p = image->p ;
+
+    width = image->width[i] ;
+    height = image->height[i] ;
+
+    pixel * sobel ;
+
+    sobel = (pixel *)malloc(width * height * sizeof( pixel ) ) ;
+
+    for(j=1; j<height-1; j++)
+    {
+        for(k=1; k<width-1; k++)
+        {
+            int pixel_blue_no, pixel_blue_n, pixel_blue_ne;
+            int pixel_blue_so, pixel_blue_s, pixel_blue_se;
+            int pixel_blue_o , pixel_blue  , pixel_blue_e ;
+
+            float deltaX_blue ;
+            float deltaY_blue ;
+            float val_blue;
+
+            pixel_blue_no = p[i][CONV(j-1,k-1,width)].b ;
+            pixel_blue_n  = p[i][CONV(j-1,k  ,width)].b ;
+            pixel_blue_ne = p[i][CONV(j-1,k+1,width)].b ;
+            pixel_blue_so = p[i][CONV(j+1,k-1,width)].b ;
+            pixel_blue_s  = p[i][CONV(j+1,k  ,width)].b ;
+            pixel_blue_se = p[i][CONV(j+1,k+1,width)].b ;
+            pixel_blue_o  = p[i][CONV(j  ,k-1,width)].b ;
+            pixel_blue    = p[i][CONV(j  ,k  ,width)].b ;
+            pixel_blue_e  = p[i][CONV(j  ,k+1,width)].b ;
+
+            deltaX_blue = -pixel_blue_no + pixel_blue_ne - 2*pixel_blue_o + 2*pixel_blue_e - pixel_blue_so + pixel_blue_se;             
+
+            deltaY_blue = pixel_blue_se + 2*pixel_blue_s + pixel_blue_so - pixel_blue_ne - 2*pixel_blue_n - pixel_blue_no;
+
+            val_blue = sqrt(deltaX_blue * deltaX_blue + deltaY_blue * deltaY_blue)/4;
+
+
+            if ( val_blue > 50 ) 
+            {
+                sobel[CONV(j  ,k  ,width)].r = 255 ;
+                sobel[CONV(j  ,k  ,width)].g = 255 ;
+                sobel[CONV(j  ,k  ,width)].b = 255 ;
+            } else
+            {
+                sobel[CONV(j  ,k  ,width)].r = 0 ;
+                sobel[CONV(j  ,k  ,width)].g = 0 ;
+                sobel[CONV(j  ,k  ,width)].b = 0 ;
+            }
+        }
+    }
+
+    for(j=1; j<height-1; j++)
+    {
+        for(k=1; k<width-1; k++)
+        {
+            p[i][CONV(j  ,k  ,width)].r = sobel[CONV(j  ,k  ,width)].r ;
+            p[i][CONV(j  ,k  ,width)].g = sobel[CONV(j  ,k  ,width)].g ;
+            p[i][CONV(j  ,k  ,width)].b = sobel[CONV(j  ,k  ,width)].b ;
+        }
+    }
+
+    free (sobel) ;
+}
+
+// OUR FUNCTIONS FOR MPI AND OPENMP
 
 void apply_gray_filter_one_img(int width, int height, pixel *p)
 {
@@ -1430,9 +1658,11 @@ int main( int argc, char ** argv ){
     int height = 0;
     int width = 0;
     MPI_Comm local_comm;
-    int i;
     int root_work = 1; // to set if you want that the root process work or not
     int other_tech_threads = 0, pict_simultaneous = 1; // 
+
+
+    int only_one_process = 1;
 
 
     img_info *parts_info = NULL;
@@ -1469,7 +1699,8 @@ int main( int argc, char ** argv ){
         width = image->width[0];
         gettimeofday(&t11, NULL);
 
-        // Choose how to split images between process
+        if (only_one_process){
+                    // Choose how to split images between process
         int n_parts_per_img[n_images];
         get_heuristic2(&n_rounds, &n_parts, n_parts_per_img, n_process,n_images,beta);
         print_heuristics(n_images, n_process, n_rounds, n_parts_per_img);
@@ -1484,6 +1715,8 @@ int main( int argc, char ** argv ){
 
         // Fill_info_parts and pixel_arts and columns 
         fill_tables(parts_info,parts_pixel,COLUMNS,image,n_parts_per_img, n_images);
+        }
+
     }
 
 
@@ -1499,76 +1732,109 @@ int main( int argc, char ** argv ){
         // Initialize
         int r;
 
-        // SENDING THE IMAGE IN PARTS
         MPI_Status status;
         MPI_Request req;
         img_info lol;
 
-        int parts_done = 0;
+        if (only_one_process){
 
-        for(r=0; r < n_rounds; r++){
-            
-            int n_part_to_send =  n_process;
-            int root_part =  parts_done;
-            img_info *begin_table = parts_info + root_part;
-            parts_done++;
+            gettimeofday(&t11, NULL);
 
-            // Send the part_info to the process
-            MPI_Scatter(begin_table -(1-root_work), n_int_img_info, MPI_INT,&lol,n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
+            #pragma omp parallel default(none) shared(image)
+            {
 
-            // Sending the images
-            int beginning = root_work;
-            int ending = n_part_to_send;
-            for (j=beginning; j < ending ; j++){
-                pixel *beg_pixel = parts_pixel[root_part + j] - parts_info[root_part + j].ghost_cells_left;
-                MPI_Send(beg_pixel, parts_info[root_part + j].width, COLUMNS[parts_info[root_part + j].image], j + (1 - root_work), 0, MPI_COMM_WORLD);
-                parts_done++;
+                printf("Solomode activated\n");
+                int i;
+                #pragma omp for schedule(static,2) nowait
+                for (i=0; i < image->n_images; i++){
+                      /* Convert the pixels into grayscale */
+                    apply_gray_filter_initial_one_image( image,i ) ;
+
+                    /* Apply blur filter with convergence value */
+                    apply_blur_filter_initial_one_image( image, 5, 20,i ) ;
+
+                    /* Apply sobel filter on pixels */
+                    apply_sobel_filter_initial_one_image( image,i ) ;
+                }
             }
-            
-            if (root_work){
-                // Prepare receiving it's own data && Send to itself
-                int n_pixels_recv = parts_info[root_part].width * parts_info[root_part].height;
-                pixel *pixel_recv = (pixel *)malloc( n_pixels_recv * sizeof(pixel) );
-                MPI_Isend(parts_pixel[root_part], parts_info[root_part].width, COLUMNS[parts_info[root_part].image], 0, 0, MPI_COMM_SELF, &req);
-                MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
 
-                //Working part
-                call_worker(local_comm, parts_info[root_part], pixel_recv, rank);
-
-                // Receive the job again
-                int n_pixels_to_send = parts_info[root_part].n_columns * parts_info[root_part].height;
-                MPI_Isend(pixel_recv, n_pixels_to_send * 3, MPI_INT, 0, status.MPI_TAG, MPI_COMM_SELF, &req);
-                MPI_Recv(parts_pixel[root_part], parts_info[root_part].n_columns, COLUMNS[parts_info[root_part].image], 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
-             }
-
-            // RECEIVING THE PARTS 
-            //printf("receiving in round %i\n", r);
-            for (j=beginning; j < ending; j++){
-                
-                MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD,&status);
-                int pn = status.MPI_SOURCE - (1-root_work);
-                //printf(" from %i \n", pn);
-                MPI_Recv(parts_pixel[root_part + pn], parts_info[root_part + pn].n_columns, COLUMNS[parts_info[root_part + pn].image], status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
-                    
-            }
-        } 
-        
             gettimeofday(&t12, NULL);
 
-        printf_time("total", t11, t12);
+            printf_time("total", t11, t12);
 
-        int proc_node = 8/num_threads;
-        
-        int nodes = n_process/proc_node;
-        if (n_process%proc_node!=0)
-            nodes++;
 
-        if(is_file_performance == 1){
-            FILE *filetow = fopen(perf_filename, "a");
-            double duration = (t12.tv_sec-t11.tv_sec)+((t12.tv_usec-t11.tv_usec)/1e6);
-            char *name = input_filename;
-            fprintf(filetow, "time: %lf; process: %d; threads: %d; node: %d; image: %s; n_images: %d; w: %d; h: %d; beta: %d; \n", duration, n_process, num_threads, nodes, name, n_images, width, height,beta ) ;
-            fclose(filetow);
+
+        } else {
+
+            // SENDING THE IMAGE IN PARTS
+
+            int parts_done = 0;
+
+            for(r=0; r < n_rounds; r++){
+                
+                int n_part_to_send =  n_process;
+                int root_part =  parts_done;
+                img_info *begin_table = parts_info + root_part;
+                parts_done++;
+
+                // Send the part_info to the process
+                MPI_Scatter(begin_table -(1-root_work), n_int_img_info, MPI_INT,&lol,n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
+
+                // Sending the images
+                int beginning = root_work;
+                int ending = n_part_to_send;
+                for (j=beginning; j < ending ; j++){
+                    pixel *beg_pixel = parts_pixel[root_part + j] - parts_info[root_part + j].ghost_cells_left;
+                    MPI_Send(beg_pixel, parts_info[root_part + j].width, COLUMNS[parts_info[root_part + j].image], j + (1 - root_work), 0, MPI_COMM_WORLD);
+                    parts_done++;
+                }
+                
+                if (root_work){
+                    // Prepare receiving it's own data && Send to itself
+                    int n_pixels_recv = parts_info[root_part].width * parts_info[root_part].height;
+                    pixel *pixel_recv = (pixel *)malloc( n_pixels_recv * sizeof(pixel) );
+                    MPI_Isend(parts_pixel[root_part], parts_info[root_part].width, COLUMNS[parts_info[root_part].image], 0, 0, MPI_COMM_SELF, &req);
+                    MPI_Recv(pixel_recv, n_pixels_recv * 3, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
+
+                    //Working part
+                    call_worker(local_comm, parts_info[root_part], pixel_recv, rank);
+
+                    // Receive the job again
+                    int n_pixels_to_send = parts_info[root_part].n_columns * parts_info[root_part].height;
+                    MPI_Isend(pixel_recv, n_pixels_to_send * 3, MPI_INT, 0, status.MPI_TAG, MPI_COMM_SELF, &req);
+                    MPI_Recv(parts_pixel[root_part], parts_info[root_part].n_columns, COLUMNS[parts_info[root_part].image], 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
+                }
+
+                // RECEIVING THE PARTS 
+                //printf("receiving in round %i\n", r);
+                for (j=beginning; j < ending; j++){
+                    
+                    MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD,&status);
+                    int pn = status.MPI_SOURCE - (1-root_work);
+                    //printf(" from %i \n", pn);
+                    MPI_Recv(parts_pixel[root_part + pn], parts_info[root_part + pn].n_columns, COLUMNS[parts_info[root_part + pn].image], status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
+                        
+                }
+            } 
+            
+                gettimeofday(&t12, NULL);
+
+            printf_time("total", t11, t12);
+
+            int proc_node = 8/num_threads;
+            
+            int nodes = n_process/proc_node;
+            if (n_process%proc_node!=0)
+                nodes++;
+
+            if(is_file_performance == 1){
+                FILE *filetow = fopen(perf_filename, "a");
+                double duration = (t12.tv_sec-t11.tv_sec)+((t12.tv_usec-t11.tv_usec)/1e6);
+                char *name = input_filename;
+                fprintf(filetow, "time: %lf; process: %d; threads: %d; node: %d; image: %s; n_images: %d; w: %d; h: %d; beta: %d; \n", duration, n_process, num_threads, nodes, name, n_images, width, height,beta ) ;
+                fclose(filetow);
+            }
+
         }
 
         // test if correct
@@ -1606,10 +1872,12 @@ int main( int argc, char ** argv ){
             return 1 ;
 
         // Stop all process
-        for(i=0; i < n_process + 1-root_work; i++)
-           parts_info[i].height = 0;
-        MPI_Scatter(parts_info, n_int_img_info, MPI_INT,&lol,n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
-
+        
+        if (!only_one_process){
+            for(i=0; i < n_process + 1-root_work; i++)
+                parts_info[i].height = 0;
+            MPI_Scatter(parts_info, n_int_img_info, MPI_INT,&lol,n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
+        }
     }
     else {
         MPI_Status status;
