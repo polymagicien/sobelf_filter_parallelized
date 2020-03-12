@@ -1,3 +1,7 @@
+# IF ISSUE RUNNING
+CHANGE path cuda in source "set_env.sh.1" (lib --> lib64)
+
+
 # Rapport 
 
 ## MPI
