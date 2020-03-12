@@ -31,7 +31,8 @@ SRC_main_nc= dgif_lib.c \
 	quantize.c \
 	gpu.cu
 
-OBJ_main_nc= $(OBJ_DIR)/dgif_lib.o \
+OBJ_main_nc= $(OBJ_DIR)/gpu.o \
+	$(OBJ_DIR)/dgif_lib.o \
 	$(OBJ_DIR)/egif_lib.o \
 	$(OBJ_DIR)/gif_err.o \
 	$(OBJ_DIR)/gif_font.o \
@@ -39,8 +40,7 @@ OBJ_main_nc= $(OBJ_DIR)/dgif_lib.o \
 	$(OBJ_DIR)/gifalloc.o \
 	$(OBJ_DIR)/main_no_print.o \
 	$(OBJ_DIR)/openbsd-reallocarray.o \
-	$(OBJ_DIR)/quantize.o \
-	$(OBJ_DIR)/gpu.o
+	$(OBJ_DIR)/quantize.o
 
 # OBJ_main_nc= $(SRC_main_nc:%.c=obj/%.o)
 
@@ -132,7 +132,7 @@ $(OBJ_DIR)/%.o : $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $^
 
 $(OBJ_DIR)/%.o : $(SRC_DIR)/%.cu
-	nvcc -o $@ $^
+	nvcc -c -o $@ $^
 
 sobelf_main:$(OBJ_main)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
@@ -141,8 +141,7 @@ sobelf_initial:$(OBJ_initial)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 sobelf_main_nc:$(OBJ_main_nc)
-	$(CC) $(CFLAGS) -L/usr/local/cuda/lib64 -lcudart -o $@ $^ $(LDFLAGS)
-
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -L/usr/local/cuda/lib64 -lcudart
 
 sobelf_img_without_copy:$(OBJ_img_without_copy)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
@@ -165,6 +164,7 @@ test:$(OBJ_test)
 
 clean:
 	rm -f sobelf_main $(OBJ_main)
+	rm -f sobelf_main_nc $(OBJ_main_nc)
 	rm -f sobelf_img $(OBJ_img)
 	rm -f sobelf_img_without_copy $(OBJ_img_without_copy)
 	rm -f sobelf_columns_mpi $(OBJ_columns_mpi)
