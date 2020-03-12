@@ -7,18 +7,15 @@ extern "C" {
     (c)*(nb_l)+(l) 
 
 __global__ void apply_blur_filter_one_iter_col_gpu( pixel * res, pixel * p, int * end, int width, int height, int size_stencil, int threshold){
-
-    int n_blocks = blockIdx.x + gridDim.x * blockIdx.y + gridDim.x * gridDim.y * blockIdx.z;
-    int n_thread_in_block = threadIdx.x + blockDim.x * threadIdx.y + blockDim.x * blockDim.y * threadIdx.z;
-    
-    int n = n_blocks * blockDim.x * blockDim.y * blockDim.z + n_thread_in_block;
-
+  
+    int n = blockIdx.x * blockDim.x  + threadIdx.x;
     int n_pixels = width * height;
 
     int i = n % height;
     int j = n / height;
-    int blurred_top = ( i >= size_stencil && i < height/10 && i >= size_stencil && i < width-size_stencil);
-    int blurred_bottom = ( i < height-size_stencil && i >= height*9/10 && i >= size_stencil && i < n_blocks );
+
+    int blurred_top = ( i >= size_stencil && i < height/10 && j >= size_stencil && j < width-size_stencil);
+    int blurred_bottom = ( i < height-size_stencil && i >= height*9/10 && j >= size_stencil && j < width-size_stencil );
     int blurred = blurred_bottom || blurred_top;
 
     if( n < n_pixels){
@@ -102,14 +99,11 @@ void gpu_part(int width, int height, pixel *p, int size, int threshold, pixel *r
         printf("\tERROR when copy 2: %s\n", cudaGetErrorString(err));   
 
     bl.x = n_blocks ;
-    bl.y = 1 ;
-    bl.z = 1 ;
-
     t.x = n_threads ;
-    t.y = 1 ;
 
-    apply_blur_filter_one_iter_col_gpu<<<bl,t>>>( d_res, d_p, end, width, height, 5, threshold ) ;
+    apply_blur_filter_one_iter_col_gpu<<<bl,t>>>( d_res, d_p, d_end, width, height, 5, threshold ) ;
     cudaDeviceSynchronize();
+    
     if( (err = cudaMemcpy(end, d_end, sizeof(int), cudaMemcpyDeviceToHost) ) != cudaSuccess)
         printf("\tERROR when copy 3: %s\n", cudaGetErrorString(err));   
     
