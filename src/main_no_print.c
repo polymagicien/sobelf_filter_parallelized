@@ -223,8 +223,7 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
             for(i=0; i<width_recv * height_recv; i++){
                 if(interm[i].r != interm_gpu[i].r || interm[i].g != interm_gpu[i].g || interm[i].b != interm_gpu[i].b ){
                     count++;
-                    blur_not_correct = 1;
-                    printf("\t( %d , %d )\n", i%height_recv, i/height_recv);                }
+                    blur_not_correct = 1;             }
             }
             if(blur_not_correct){
                 printf("\tBlur GPU not correct - %d\n", count);
