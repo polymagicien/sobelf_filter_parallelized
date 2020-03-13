@@ -6,6 +6,8 @@ extern "C" {
 #define CONV_COL(l,c,nb_l) \
     (c)*(nb_l)+(l) 
 
+#define DIV 3
+
 __global__ void apply_blur_filter_one_iter_col_gpu( pixel * res, pixel * p, int * end, int width, int height, int size_stencil, int threshold){
   
     int n = blockIdx.x * blockDim.x  + threadIdx.x;
@@ -67,10 +69,6 @@ __global__ void apply_blur_filter_one_iter_col_gpu( pixel * res, pixel * p, int 
             ) {
             *end = 0 ;
         }
-
-        p[n].r = res[n].r ;
-        p[n].g = res[n].g ;
-        p[n].b = res[n].b ;
     }
 }
 
@@ -108,7 +106,11 @@ void gpu_part(int width, int height, pixel *p, int size, int threshold, pixel *r
         printf("\tERROR when copy 3: %s\n", cudaGetErrorString(err));   
     cudaDeviceSynchronize();
 
-    printf("\tEND : %d\n", *end);
-    cudaMemcpy(p, d_p, length * sizeof(pixel), cudaMemcpyDeviceToHost);
+    if( (err = cudaMemcpy(p, d_res, length * sizeof(pixel), cudaMemcpyDeviceToHost) ) != cudaSuccess)
+        printf("\tERROR when copy 4: %s\n", cudaGetErrorString(err));   
     cudaDeviceSynchronize();
+
+    cudaFree(d_p);
+    cudaFree(d_res);
+    cudaFree(d_end);
 }
