@@ -202,26 +202,28 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
 
     // Used in functions to store
     pixel *interm = (pixel *)malloc(width_recv * height_recv * sizeof( pixel ) );
-    pixel *interm_gpu = (pixel *)malloc(width_recv * height_recv * sizeof( pixel ) );
+    pixel *pixel_gpu = (pixel *)malloc(width_recv * height_recv * sizeof( pixel ) );
+    memcpy(pixel_gpu, pixel_recv, width_recv * height_recv * sizeof( pixel ));
     int i;
 
-    #pragma omp parallel default(none) shared(interm_gpu, i, pixel_recv, height_recv, width_recv, end_local, end_global, interm, rank_left, rank_right, pixel_ghost_left, pixel_middle, pixel_ghost_right, pixel_middle_plus, n_int_ghost_cells, local_comm, ompi_mpi_op_land, ompi_mpi_int, status_right, status_left, rank)
+    #pragma omp parallel default(none) shared(pixel_gpu, i, pixel_recv, height_recv, width_recv, end_local, end_global, interm, rank_left, rank_right, pixel_ghost_left, pixel_middle, pixel_ghost_right, pixel_middle_plus, n_int_ghost_cells, local_comm, ompi_mpi_op_land, ompi_mpi_int, status_right, status_left, rank)
     {   
 
         apply_gray_filter_one_img(width_recv, height_recv, pixel_recv);
+        apply_gray_filter_one_img(width_recv, height_recv, pixel_gpu);
 
         int counter = 0;
         do{
             #pragma omp barrier
             end_local = 1;
             counter++;
-            gpu_part(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20, interm_gpu, &end_local);
+            gpu_part(width_recv, height_recv, pixel_gpu, SIZE_STENCIL, 20, interm, &end_local);
             apply_blur_filter_one_iter_col(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20, interm, &end_local);
 
             int blur_not_correct = 0;
             int count = 0;
             for(i=0; i<width_recv * height_recv; i++){
-                if(interm[i].r != interm_gpu[i].r || interm[i].g != interm_gpu[i].g || interm[i].b != interm_gpu[i].b ){
+                if(pixel_recv[i].r != pixel_gpu[i].r || pixel_recv[i].g != pixel_gpu[i].g || pixel_recv[i].b != pixel_gpu[i].b ){
                     count++;
                     blur_not_correct = 1;             }
             }

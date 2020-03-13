@@ -109,6 +109,6 @@ void gpu_part(int width, int height, pixel *p, int size, int threshold, pixel *r
     cudaDeviceSynchronize();
 
     printf("\tEND : %d\n", *end);
-    cudaMemcpy(res, d_res, length * sizeof(pixel), cudaMemcpyDeviceToHost);
+    cudaMemcpy(p, d_p, length * sizeof(pixel), cudaMemcpyDeviceToHost);
     cudaDeviceSynchronize();
 }
