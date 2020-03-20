@@ -25,7 +25,7 @@
 #define SIZE_STENCIL 5
 
 int VERIFY_GIF = 1;
-
+int USE_GPU = 1;
 
 /****************************************************************************************************************************************************/
 
@@ -200,22 +200,27 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
     MPI_Comm_rank(MPI_COMM_WORLD, &global_rank);
     MPI_Comm_rank(local_comm, &local_rank);
 
-    // Used in functions to store
+    // Used in functions to store (cannot be declared in omp parallel)
     pixel *interm = (pixel *)malloc(width_recv * height_recv * sizeof( pixel ) );
 
-    #pragma omp parallel default(none) shared(pixel_recv, height_recv, width_recv, end_local, end_global, interm, rank_left, rank_right, pixel_ghost_left, pixel_middle, pixel_ghost_right, pixel_middle_plus, n_int_ghost_cells, local_comm, ompi_mpi_op_land, ompi_mpi_int, status_right, status_left, rank)
+    #pragma omp parallel default(none) shared(USE_GPU, pixel_recv, height_recv, width_recv, end_local, end_global, interm, rank_left, rank_right, pixel_ghost_left, pixel_middle, pixel_ghost_right, pixel_middle_plus, n_int_ghost_cells, local_comm, ompi_mpi_op_land, ompi_mpi_int, status_right, status_left, rank)
     {   
 
         apply_gray_filter_one_img(width_recv, height_recv, pixel_recv);
 
         int counter = 0;
+        struct timeval t1, t2;
+        gettimeofday(&t1, NULL);
         do{
             #pragma omp barrier
             end_local = 1;
             counter++;
-            gpu_part(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20, interm, &end_local);
-            // apply_blur_filter_one_iter_col(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20, interm, &end_local);
 
+            if(USE_GPU)
+                gpu_part(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20, interm, &end_local);
+            else 
+                apply_blur_filter_one_iter_col(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20, interm, &end_local);
+                
             #pragma omp barrier
             #pragma omp master
             {
@@ -236,8 +241,10 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
             }
             #pragma omp barrier
         } while( !end_global);
+        gettimeofday(&t2, NULL);
+        printf_time("\tTIME FOR BLUR : ", t1, t2);
         apply_sobel_filter_one_img_col(width_recv, height_recv, pixel_recv, interm);
-        // printf("Number of iterations for blur : %d\n", counter);
+        printf("Number of iterations for blur : %d\n", counter);
     }
 
     // Free struct used in function to store
