@@ -23,7 +23,10 @@ typedef struct animated_gif
 animated_gif *load_pixels( char * filename );
 int output_modified_read_gif( char * filename, GifFileType * g ) ;
 int store_pixels( char * filename, animated_gif * image );
+int load_image_from_file(animated_gif **image , int *n_images, char *input_filename);
+void print_heuristics(int n_images, int n_process, int n_rounds, int n_parts_per_img[]);
 void printf_time(char* string, struct timeval t1, struct timeval t2);
+void print_how_to(int rank);
 void INV_CONV(int *n_row, int *n_col, int i, int width);
 void apply_gray_filter_initial( animated_gif * image );
 void apply_blur_filter_initial( animated_gif * image, int size, int threshold );

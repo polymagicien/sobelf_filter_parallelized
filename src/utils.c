@@ -545,6 +545,31 @@ int store_pixels( char * filename, animated_gif * image )
     return 1 ;
 }
 
+
+int load_image_from_file(animated_gif **image , int *n_images, char *input_filename){
+    struct timeval t1, t2;
+    gettimeofday(&t1, NULL);
+    *image = load_pixels( input_filename );
+    *n_images = (*image)->n_images;
+    if ( image == NULL ) { printf("IMAGE NULL"); return 1 ; }
+    gettimeofday(&t2, NULL);
+    // double duration = (t2.tv_sec -t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
+    // printf( "GIF loaded from file %s with %d image(s) in %lf s\n", input_filename, image->n_images, duration);
+    return 0; 
+}
+
+void print_heuristics(int n_images, int n_process, int n_rounds, int n_parts_per_img[]){
+    printf(" ----> For %d images and %d process, the heuristics found %d rounds and repartition of parts: ", n_images, n_process, n_rounds);
+    int counter = 0, i;
+    for (i=0; i<n_images; i++){
+        printf(" %i", n_parts_per_img[i]);
+        counter += n_parts_per_img[i];
+        if (counter % n_process == 0)
+            printf(" ||");
+    }
+    printf("\n");
+}
+
 void printf_time(char* string, struct timeval t1, struct timeval t2) {
 
     double duration = (t2.tv_sec-t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
@@ -554,6 +579,17 @@ void printf_time(char* string, struct timeval t1, struct timeval t2) {
     strcat(dest, " %lf\n");
 
     printf( dest, duration);
+}
+
+void print_how_to(rank){
+    if (rank == 0) {
+        printf("INVALID ARGUMENT\n----------------------------------------------------------------------------------------------------------\n");
+        printf("USAGE: ./sobelf input_filename output_filename [-option value]\n");
+        printf("OPTIONS: \n    -file : writing result in a file \n    -beta : 1 if you want to limit the number of parts, 0 if not (default 1)\n");
+        printf("    -verifgif : 1 if you want to verify the result (default 0)\n");
+        printf("EXAMPLE:  ./sobelf input_filename output_filename -file output.txt -beta 1 -rootwork 0 -verifgif 1");
+        printf("\n----------------------------------------------------------------------------------------------------------\n\n\n");
+    }
 }
 
 #define CONV(l,c,nb_c) \

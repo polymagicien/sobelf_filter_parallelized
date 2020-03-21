@@ -1,113 +1,61 @@
 #!/bin/bash
 
 # TO RUN MAINS ON SET OF DATA
-# ./run_test sobelf main_filename
-if [ "$1" = "on_img" ]
+
+if [ "$1" = "global" ]
 then
-    # 1 : test to run
-    # 2 : binary tester
-    # ./run_test #1 #2
-    
-    let "NODE = 1"
-    let "PROCESSES = 6"
-    INPUT_DIR=images/original
-    OUTPUT_DIR=images/processed
-    #PERFORMANCE_FILE="performance/${2}_N_${NODE}_n_${PROCESSES}.txt"
-    PERFORMANCE_FILE="perf_init_jonas.txt"
-    mkdir $OUTPUT_DIR 2>/dev/null
+    if [ "$2" = "-h" ]
+    then
+        echo "USAGE: ./run_test.sh global [executable] [output_file] [until_process] [until_threads] [repetition] [gpu_activated] [beta]"
+    else
+        # 1 : test to run
+        # 2 : binary tester
+        # 3 : output_file
+        # 4 : until this number of process
+        # 5 : until this number of threads
+        # 6 : number of repetition
+        # 7 : gpu activated
+        # 8 : beta activated
+        # ./run_test #1 #2 
+        
+        let "NODES=1"
+        let "PROC_BY_NODE=1"
+        INPUT_DIR=images/original
+        OUTPUT_DIR=images/processed
+        mkdir $OUTPUT_DIR 2>/dev/null
 
-    touch $PERFORMANCE_FILE
-    rm $PERFORMANCE_FILE
+        touch $PERFORMANCE_FILE
+        rm $PERFORMANCE_FILE
 
-    echo $PERFORMANCE_FILE
-
-    for i in $INPUT_DIR/*gif ; do
-        dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
-        echo "Running test on $i -> $dest_filename"
-        salloc -N $NODE -n $PROCESSES mpirun ./$2 $i $dest_filename $PERFORMANCE_FILE
-    done
-fi
-
-if [ "$1" = "on_img_threads" ]
-then
-    # 1 : test to run
-    # 2 : binary tester
-    # ./run_test #1 #2 
-    
-    let "FROMT=1"
-    let "TOT=8"
-    let "FROMP=1"
-    let "TOP=8"
-    let "NODES=1"
-    let "PROC_BY_NODE=1"
-    let "BETA=0"
-    INPUT_DIR=images/original
-    OUTPUT_DIR=images/processed
-    #PERFORMANCE_FILE="performance/${2}_N_${NODE}_n_${PROCESSES}.txt"
-    PERFORMANCE_FILE="perf_init_jonas.txt"
-    mkdir $OUTPUT_DIR 2>/dev/null
-
-    touch $PERFORMANCE_FILE
-    rm $PERFORMANCE_FILE
-
-    echo $PERFORMANCE_FILE
-    for PROCESSES in $(seq $FROMP $TOP)
-    do
-        for THREADS in $(seq $FROMT $TOT)
-        do
-            ((PROC_BY_NODE= 8/$THREADS))
-            ((NODES= $PROCESSES%$PROC_BY_NODE))
-            if [ $NODES = "0" ]
-            then 
-                ((NODES= $PROCESSES/$PROC_BY_NODE))
-            else
-                ((NODES= $PROCESSES/$PROC_BY_NODE+1))
-            fi
-            for i in $INPUT_DIR/*gif ; do
-                dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
-                echo "Running test on $i -> $dest_filename with $THREADS threads, $PROCESSES processes on $NODES nodes"
-                for j in $(seq 1 3)
-                do
-                    OMP_NUM_THREADS=$THREADS salloc -N $NODES -c $THREADS -n $PROCESSES mpirun ./$2 $i $dest_filename $3 $4
+        echo $PERFORMANCE_FILE
+        for PROCESSES in $(seq 1 $4); do
+            for THREADS in $(seq 1 $5); do
+                ((PROC_BY_NODE= 8/$THREADS))
+                ((NODES= $PROCESSES%$PROC_BY_NODE))
+                if [ $NODES = "0" ]
+                then
+                    ((NODES= $PROCESSES/$PROC_BY_NODE))
+                else
+                    ((NODES= $PROCESSES/$PROC_BY_NODE+1))
+                fi
+                for i in $INPUT_DIR/*gif ; do
+                    dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
+                    echo "Running test on $i -> $dest_filename with $THREADS threads, $PROCESSES processes on $NODES nodes"
+                    for j in $(seq 1 $6); do #to make a mean
+                        OMP_NUM_THREADS=$THREADS salloc -N $NODES -c $THREADS -n $PROCESSES mpirun ./$2 $i $dest_filename -file $3 -beta $8 -rootwork 1 -verifgif 0 -gpu $7
+                    done
                 done
             done
         done
-    done
+    fi
 fi
 
-if [ "$1" = "on_processes" ]
-then
-    # 1 : test to run
-    # 2 : binary tester
-    # 3 : input_file
-    # ./run_test #1 #2 #3 
-
-    let "FROM=8"
-    let "TO=8"
-    let "NODE = 1"
-
-    INPUT_DIR=images/original
-    OUTPUT_DIR=images/processed
-    source_filename=`basename $3 .gif`
-    PERFORMANCE_FILE="performance/on_processes/${2}_${source_filename}_N_${NODE}.txt"
-    mkdir $OUTPUT_DIR 2>/dev/null
-    touch $PERFORMANCE_FILE
-    rm $PERFORMANCE_FILE
-
-    for PROCESSES in $(seq $FROM $TO)
-    do
-        dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
-        echo "Running test on $3 -> $dest_filename"
-        salloc -N $NODE -n $PROCESSES mpirun ./$2 $3 $dest_filename $PERFORMANCE_FILE
-    done
-fi
 
 if [ "$1" = "initial" ]
 then
     # 1 : test to run
     # 2 : binary tester
-    # 3 : input_file
-    # ./run_test #1 #2 #3 S
+    # ./run_test #1 #2
 
     INPUT_DIR=images/original
     OUTPUT_DIR=images/processed
@@ -125,12 +73,13 @@ then
     done
 fi
 
-if [ "$1" = "threads_method_2" ]
+
+if [ "$1" = "threads_method_2" ] #need to be cleaned
 then
     # 1 : test to run
     # 2 : binary tester
-    # 3 : input_file
-    # ./run_test #1 #2 #3 S
+    # 3 : output_file
+    # ./run_test #1 #2 #3
 
     INPUT_DIR=images/original
     OUTPUT_DIR=images/processed
@@ -139,8 +88,8 @@ then
     for t in $(seq 1 6); do
         for i in $INPUT_DIR/*gif ; do
             dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
-            echo "Running test on $i -> $dest_filename with $THREADS threads, $PROCESSES processes on $NODES nodes"
-            OMP_NUM_THREADS=$t salloc -N 1 -n 1 -c $t mpirun ./$2 $i $dest_filename $PERFORMANCE_FILE
+            echo "Running test on $i -> $dest_filename with $t threads, 1 processes on 1 nodes"
+            OMP_NUM_THREADS=$t salloc -N 1 -n 1 -c $t mpirun ./$2 $i $dest_filename -file $3
         done
     done
 fi
@@ -150,8 +99,8 @@ if [ "$1" = "no_working_root" ]
 then
     # 1 : test to run
     # 2 : binary tester
-    # 3 : input_file
-    # ./run_test #1 #2 #3 S
+    # 3 : output_file
+    # ./run_test #1 #2 #3 
 
     let "NODES = 1"
     let "res = 0"
@@ -160,12 +109,12 @@ then
     OUTPUT_DIR=images/processed
     source_filename=`basename $3 .gif`
     mkdir $OUTPUT_DIR 2>/dev/null
-    for w in $(seq 0 0); do
-        for p in $(seq 2 9); do
+    for w in $(seq 0 1); do
+        for p in $(seq 2 8); do
             for i in $INPUT_DIR/*gif ; do
                 dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
                 echo "Running test on $i -> $dest_filename with $p processes on $NODES nodes"
-                OMP_NUM_THREADS=1 salloc -N 1 -n $p -c 1 mpirun ./$2 $i $dest_filename $3 1 $w
+                OMP_NUM_THREADS=1 salloc -N 1 -n $p -c 1 mpirun ./$2 $i $dest_filename -file $3 -beta 1 -rootwork $w -verifgif 1
             done
         done
     done

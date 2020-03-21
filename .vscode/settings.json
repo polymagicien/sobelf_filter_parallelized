@@ -3,7 +3,8 @@
         "chrono": "c",
         "mpi.h": "c",
         "*.cu": "c",
-        "gpu.h": "c"
+        "gpu.h": "c",
+        "string": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

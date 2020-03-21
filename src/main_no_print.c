@@ -16,16 +16,12 @@
 #include "utils.h"
 #include "gpu.h"
 
-// Make tester
-// mpirun -n 1 ./test args
-// OMP_NUM_THREADS=1 salloc -n 6 -N 1 mpirun ./sobelf_main images/original/Campusplan-Hausnr.gif images/processed/2.gif
-
 /* Set this macro to 1 to enable debugging information */
 #define SOBELF_DEBUG 0
 #define SIZE_STENCIL 5
 
-int VERIFY_GIF = 1;
-int USE_GPU = 1;
+int VERIFY_GIF = 0;
+int USE_GPU = 0;
 
 /****************************************************************************************************************************************************/
 
@@ -39,6 +35,9 @@ typedef struct img_info
     int ghost_cells_right, n_columns, ghost_cells_left, width ; // number of pixels in a width of a part
     int rank, rank_left, rank_right;
 } img_info;
+
+
+/*********************************************************** STRUCTURES TO HANDLE MANY PARTS OF IMG ****************************************************/
 
 MPI_Datatype create_column(int width, int height){
     MPI_Datatype COLUMN;
@@ -123,32 +122,7 @@ void fill_tables(img_info info_array[], pixel* pixel_array[], MPI_Datatype datat
 }
 
 
-/****************************************************************************************************************************************************/
-
-int load_image_from_file(animated_gif **image , int *n_images, char *input_filename){
-    struct timeval t1, t2;
-    gettimeofday(&t1, NULL);
-    *image = load_pixels( input_filename );
-    *n_images = (*image)->n_images;
-    if ( image == NULL ) { printf("IMAGE NULL"); return 1 ; }
-    gettimeofday(&t2, NULL);
-    // double duration = (t2.tv_sec -t1.tv_sec)+((t2.tv_usec-t1.tv_usec)/1e6);
-    // printf( "GIF loaded from file %s with %d image(s) in %lf s\n", input_filename, image->n_images, duration);
-    return 0; 
-}
-void print_heuristics(int n_images, int n_process, int n_rounds, int n_parts_per_img[]){
-    printf(" ----> For %d images and %d process, the heuristics found %d rounds and repartition of parts: ", n_images, n_process, n_rounds);
-    int counter = 0, i;
-    for (i=0; i<n_images; i++){
-        printf(" %i", n_parts_per_img[i]);
-        counter += n_parts_per_img[i];
-        if (counter % n_process == 0)
-            printf(" ||");
-    }
-    printf("\n");
-}
-
-/****************************************************************************************************************************************************/
+/***************************************************************** WORKERS ******************************************************************************/
 
 void call_worker_one_thread(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int rank){ // Function to handle one part of an image
     int end_local = 1;
@@ -172,7 +146,6 @@ void call_worker_one_thread(MPI_Comm local_comm, img_info info_recv, pixel *pixe
 
     free(interm);
 }
-
 
 void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int rank){ // Function to handle one part of an image
     pixel *pixel_ghost_left, *pixel_ghost_right, *pixel_middle, *pixel_middle_plus;
@@ -238,9 +211,9 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
             #pragma omp barrier
         } while( !end_global);
         gettimeofday(&t2, NULL);
-        printf_time("\tTIME FOR BLUR : ", t1, t2);
+        //printf_time("\tTIME FOR BLUR : ", t1, t2);
         apply_sobel_filter_one_img_col(width_recv, height_recv, pixel_recv, interm);
-        printf("Number of iterations for blur : %d\n", counter);
+        //printf("Number of iterations for blur : %d\n", counter);
     }
 
     // Free struct used in function to store
@@ -299,7 +272,10 @@ void call_worker_solo(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv
     free(interm);
 }
 
-void get_heuristic(int *n_rounds, int *n_parts_per_img, int n_process, int n_images){ // First draw of heuristics
+
+/***************************************************************** HEURISTICS ******************************************************************************/
+
+void get_first_heuristics(int *n_rounds, int *n_parts_per_img, int n_process, int n_images){ // First draw of heuristics
     int r = 1, n_parts;
 
     int test = 0;
@@ -319,11 +295,11 @@ void get_heuristic(int *n_rounds, int *n_parts_per_img, int n_process, int n_ima
     }
 }
 
-void get_heuristic2(int *n_rounds, int *n_parts_per_img, int table_n_img[], int n_process, int n_images, int beta){ // First draw of heuristics
+void get_heuristics(int *n_rounds, int *n_parts_per_img, int table_n_img[], int n_process, int n_images, int beta){ // Limit the number of parts (first whole images, then optimize the remaining images)
     int r = 1;
 
     if (n_images < n_process || beta == 0){
-        get_heuristic(n_rounds,n_parts_per_img,n_process, n_images);
+        get_first_heuristics(n_rounds,n_parts_per_img,n_process, n_images);
         for (r = 0; r < n_images; r++)
             table_n_img[r] = *n_parts_per_img;
     } else {
@@ -331,7 +307,7 @@ void get_heuristic2(int *n_rounds, int *n_parts_per_img, int table_n_img[], int 
         int n_img_last = n_images % n_process;
         int n_img_solo = n_images - n_img_last;
         if (n_img_last != 0)
-            get_heuristic(&number_of_rounds,n_parts_per_img,n_process,n_img_last);
+            get_first_heuristics(&number_of_rounds,n_parts_per_img,n_process,n_img_last);
         else
             *n_parts_per_img = 1;
         
@@ -344,29 +320,21 @@ void get_heuristic2(int *n_rounds, int *n_parts_per_img, int table_n_img[], int 
     }
 }
 
-void get_threads_heuristics( int *other_tech_threads, int *number_of_pix, int n_rounds, int num_threads,int n_process, int beta, int n_parts_per_img[]){
-    if (beta == 0 || n_parts_per_img[0] != 1 || num_threads == 0){
-        return;
-    } else {
-        if (n_rounds -1 > 1){
-            int max_img = (n_rounds - 1);
-            *number_of_pix = n_rounds;
-        }
-    }
-}
+
+/******************************************************************* MAIN **********************************************************************************/
 
 int main( int argc, char ** argv ){
 
-    // MPI_INIT
+    /* -------------------- MPI_INIT AND THREAD INIT -------------------- */ 
     int n_process, rank;
-    int given;
+    int thread_priority_given, thread_priority_asked = 2;
 
-    MPI_Init_thread(&argc, &argv,2,&given);
+    MPI_Init_thread(&argc, &argv, thread_priority_asked, &thread_priority_given);
     MPI_Comm_size(MPI_COMM_WORLD, &n_process);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     int num_threads = 1;
-    int beta  = 1;
+
 #ifdef _OPENMP
     #pragma omp parallel
     {
@@ -374,105 +342,114 @@ int main( int argc, char ** argv ){
     }
 #endif
 
-    // Save performances
-    int is_file_performance = 0;
+    /* -------------------- VARIABLES FOR OPTIONS -------------------- */
+
+    int is_file_performance = 0; // to save the result in a file
     char * perf_filename ;
-    
-    // FIRST ALLOCATIONS
+    int beta  = 1; // choose if you want to limitate the number of parts of image (1) or not (0)
+    int only_one_process = 0; // choose if you want to allow the beta version of '1 image - 1 thread' (choose 1) or stay with the old version '1 image - all threads'
+    int root_work = 1; // to set if you want that the root process work (1) or not (0)
+
+    if(argc < 3 || (argc-3)%2 != 0){
+        print_how_to(rank);
+        return 1;
+    }
+
+    char *input_filename = argv[1];
+    char *output_filename = argv[2];
+
+    int i,j, c=3;
+    for (i = 3; i < argc-1; i++){
+        if (strcmp(argv[i], "-file") == 0){
+            is_file_performance = 1;
+            perf_filename = argv[i+1];
+            c+=2;
+        } else if (strcmp(argv[i], "-beta") == 0){
+            beta = atoi(argv[i+1]);
+            c+=2;
+        } else if (strcmp(argv[i], "-rootwork") == 0){
+            root_work = atoi(argv[i+1]);
+            c+=2;
+        } else if (strcmp(argv[i], "-verifgif") == 0){
+            VERIFY_GIF = atoi(argv[i+1]);
+            c+=2;
+        } else if (strcmp(argv[i], "-gpu") == 0){
+            USE_GPU = atoi(argv[i+1]);
+            c+=2;
+        }
+    }
+
+    if (c!= argc){
+        print_how_to(rank);
+        return 1;
+    }
+
+
+    /* -------------------- FIRST ALLOCATIONS -------------------- */ 
+
+    // General informations about the image
     int n_int_img_info = sizeof(img_info) / sizeof(int);
     int n_parts, n_images, n_rounds;
     int height = 0;
     int width = 0;
+    int root_not_work = 1 - root_work;
     MPI_Comm local_comm;
-    MPI_Comm COM_WORLD_BIS;
-    int root_work = 1; // to set if you want that the root process work or not
-    int other_tech_threads = 0, pict_simultaneous = 1; // 
 
-
-    int only_one_process = 0;
-
-
+    // Struct to be used 
     img_info *parts_info = NULL;
     pixel **parts_pixel = NULL;
     MPI_Datatype *COLUMNS = NULL;
-
+    animated_gif * image ;
     struct timeval t11, t12;
 
-    if(argc < 3){ 
-        printf("INVALID ARGUMENT\n ./sobelf input_filename output_filename\n");
-        return 1;
-    }
-    if(argc >= 4){
-        is_file_performance = 1;
-        perf_filename = argv[3];
-    }
-    if (argc >=5){
-        beta = atoi(argv[4]);
-    }
-    if (argc >= 6){
-        root_work = atoi(argv[5]);
-    }
-    char *input_filename = argv[1];
-    char *output_filename = argv[2];
 
-    animated_gif * image ;
-    int i, j;
-    // CHOOSING THE CUTTING STRATEGIE
+    /* -------------------- CHOOSING THE CUTTING STRATEGY -------------------- */ 
     if(rank == 0){
-        
-        //printf("Thread-safety asked: %i and given: %i\n",3,given );
-        if (root_work == 0)
+
+        if (root_not_work)
             n_process--;
 
+        // Load image
         load_image_from_file(&image, &n_images, input_filename);
         height = image->height[0];
         width = image->width[0];
         gettimeofday(&t11, NULL);
 
-        if (!only_one_process){
-                    // Choose how to split images between process
-        int n_parts_per_img[n_images];
-        get_heuristic2(&n_rounds, &n_parts, n_parts_per_img, n_process,n_images,beta);
-        print_heuristics(n_images, n_process, n_rounds, n_parts_per_img);
-
-            get_threads_heuristics(&other_tech_threads,&pict_simultaneous,n_rounds,num_threads,n_process,beta,n_parts_per_img);
-
+        if (!only_one_process) {
+            
+            // Choose how to split images between process
+            int n_parts_per_img[n_images];
+            get_heuristics(&n_rounds, &n_parts, n_parts_per_img, n_process,n_images,beta);
+            print_heuristics(n_images, n_process, n_rounds, n_parts_per_img);
 
             // Structures needed for splitting data
             parts_info = (img_info *)malloc(n_parts * n_images * sizeof(img_info));
             parts_pixel = (pixel **)malloc(n_parts * n_images * sizeof(pixel *));
             COLUMNS = (MPI_Datatype*)malloc(n_images * sizeof(MPI_Datatype));
 
-        // Fill_info_parts and pixel_arts and columns 
-        fill_tables(parts_info,parts_pixel,COLUMNS,image,n_parts_per_img, n_images, root_work);
+            // Fill_info_parts and pixel_arts and columns 
+            fill_tables(parts_info,parts_pixel,COLUMNS,image,n_parts_per_img, n_images, root_work);
         }
-
     }
 
-    // CREATING ALL THE DIFFERENT COMMUNICATORS
+
+    /* -------------------- CREATING ALL THE DIFFERENT COMMUNICATORS -------------------- */ 
     MPI_Bcast(&n_parts, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    int pseudo_rank = rank - (1-root_work);
-    if (pseudo_rank == -1)
-        pseudo_rank = 10000;
+    MPI_Bcast(&root_work, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    int pseudo_rank = (rank == 0 && root_work == 0) ? 1000 : rank - root_not_work;
     MPI_Comm_split(MPI_COMM_WORLD, pseudo_rank/n_parts, pseudo_rank, &local_comm);
 
-    int will_participate = 1;
-    if (root_work == 0 && rank == 0)
-        will_participate = 0;
 
-    MPI_Comm_split(MPI_COMM_WORLD, will_participate, pseudo_rank, &COM_WORLD_BIS);
-    
+    /* -------------------- ALGORITHM FOR THE ROOT -------------------- */
     if(rank == 0){
         
         // Initialize
         int r;
-
         MPI_Status status;
         MPI_Request req;
         img_info lol;
 
-        int root_not_work = 1 - root_work;
-        
+        // Handle sending if root_work == 0
         int displs[n_process + root_not_work];
         int tab_leng[n_process + root_not_work];
         displs[0] = 0;
@@ -490,13 +467,7 @@ int main( int argc, char ** argv ){
             }
         }
 
-
-        if (only_one_process){
-
-            
-            printf("Solomode activated with ");
-
-            gettimeofday(&t11, NULL);
+        if (only_one_process){ // Test of the second version for omp
 
             #pragma omp parallel default(none) shared(image)
             {
@@ -517,22 +488,7 @@ int main( int argc, char ** argv ){
                 }
             }
 
-            gettimeofday(&t12, NULL);
-
-            printf_time("\ntotal", t11, t12);
-
-            FILE *filetow = fopen("performance/test_threads_second_method.txt", "a");
-            double duration = (t12.tv_sec-t11.tv_sec)+((t12.tv_usec-t11.tv_usec)/1e6);
-            char *name = input_filename;
-            fprintf(filetow, "time: %lf; process: %d; threads: %d; node: %d; image: %s; n_images: %d; w: %d; h: %d; beta: %d; \n", duration, 1, num_threads, 1, name, n_images, width, height,beta ) ;
-            fclose(filetow);
-
-
-
-        } else {
-
-
-            // SENDING THE IMAGE IN PARTS
+        } else { // Usual MPI and OMP
 
             int parts_done = 0;
 
@@ -544,7 +500,6 @@ int main( int argc, char ** argv ){
 
                 // Send the part_info to the process
                 MPI_Scatterv(begin_table,tab_leng,displs,MPI_INT,&lol,n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
-                //MPI_Scatter(begin_table -(1-root_work), n_int_img_info, MPI_INT,&lol,n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
 
                 // Sending the images
                 int beginning = root_work;
@@ -555,6 +510,7 @@ int main( int argc, char ** argv ){
                     parts_done++;
                 }
                 
+                // Root work if needed
                 if (root_work){
                     // Prepare receiving it's own data && Send to itself
                     int n_pixels_recv = parts_info[root_part].width * parts_info[root_part].height;
@@ -573,38 +529,36 @@ int main( int argc, char ** argv ){
                     parts_done++;
                 }
 
-                // RECEIVING THE PARTS 
-                //printf("receiving in round %i\n", r);
+                // Receive the parts
                 for (j=beginning; j < ending; j++){
-
                     MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD,&status);
-                    int pn = status.MPI_SOURCE - (1-root_work);
+                    int pn = status.MPI_SOURCE - root_not_work;
                     MPI_Recv(parts_pixel[root_part + pn], parts_info[root_part + pn].n_columns, COLUMNS[parts_info[root_part + pn].image], status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
-                        
                 }
             } 
             
-                gettimeofday(&t12, NULL);
+        }
+        
+        // Get final time
+        gettimeofday(&t12, NULL);
+        printf_time("\ntotal", t11, t12);
 
-            printf_time("total", t11, t12);
+        // Save result if needed
+        if(is_file_performance == 1){
 
             int proc_node = 8/num_threads;
-            
             int nodes = n_process/proc_node;
             if (n_process%proc_node!=0)
                 nodes++;
 
-            if(is_file_performance == 1){
-                FILE *filetow = fopen(perf_filename, "a");
-                double duration = (t12.tv_sec-t11.tv_sec)+((t12.tv_usec-t11.tv_usec)/1e6);
-                char *name = input_filename;
-                fprintf(filetow, "time: %lf; process: %d; threads: %d; node: %d; image: %s; n_images: %d; w: %d; h: %d; beta: %d; root_work: %d \n", duration, n_process, num_threads, nodes, name, n_images, width, height,beta, root_work ) ;
-                fclose(filetow);
-            }
-
+            FILE *filetow = fopen(perf_filename, "a");
+            double duration = (t12.tv_sec-t11.tv_sec)+((t12.tv_usec-t11.tv_usec)/1e6);
+            char *name = input_filename;
+            fprintf(filetow, "time: %lf; process: %d; threads: %d; node: %d; image: %s; n_images: %d; w: %d; h: %d; beta: %d; root_work: %d; gpu: %d \n", duration, n_process, num_threads, nodes, name, n_images, width, height,beta, root_work, USE_GPU ) ;
+            fclose(filetow);
         }
 
-        // test if correct
+        // Test if correct
         if(VERIFY_GIF){
             animated_gif *compared_img;
             int temp, is_ok = 1;
@@ -645,6 +599,7 @@ int main( int argc, char ** argv ){
             MPI_Scatterv(parts_info, tab_leng,displs, MPI_INT,&lol,n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
         }
     }
+    /* -------------------- ALGORITHM FOR SLAVE PROCESS -------------------- */
     else {
         MPI_Status status;
 
@@ -676,6 +631,7 @@ int main( int argc, char ** argv ){
             free(pixel_recv);
         }
     }
+
     MPI_Finalize();
     return 0;
 }
