@@ -1,0 +1,16 @@
+time: 0.404743; process: 6; threads: 2; node: 2; image: images/original/051009.vince.gif; n_images: 1; w: 1484; h: 913; beta: 1; 
+time: 0.278738; process: 6; threads: 2; node: 2; image: images/original/1.gif; n_images: 10; w: 500; h: 500; beta: 1; 
+time: 0.218635; process: 6; threads: 2; node: 2; image: images/original/200_s.gif; n_images: 1; w: 200; h: 200; beta: 1; 
+time: 0.231459; process: 6; threads: 2; node: 2; image: images/original/9815573.gif; n_images: 10; w: 500; h: 281; beta: 1; 
+time: 0.230468; process: 6; threads: 2; node: 2; image: images/original/australian-flag-large.gif; n_images: 1; w: 1200; h: 600; beta: 1; 
+time: 2.737689; process: 6; threads: 2; node: 2; image: images/original/Campusplan-Hausnr.gif; n_images: 1; w: 9932; h: 7016; beta: 1; 
+time: 2.806961; process: 6; threads: 2; node: 2; image: images/original/Campusplan-Mobilitaetsbeschraenkte.gif; n_images: 1; w: 9933; h: 7016; beta: 1; 
+time: 0.231023; process: 6; threads: 2; node: 2; image: images/original/fire.gif; n_images: 33; w: 30; h: 60; beta: 1; 
+time: 0.186940; process: 6; threads: 2; node: 2; image: images/original/frame_002.gif; n_images: 1; w: 585; h: 450; beta: 1; 
+time: 0.558192; process: 6; threads: 2; node: 2; image: images/original/giphy-3.gif; n_images: 5; w: 1920; h: 1080; beta: 1; 
+time: 0.827901; process: 6; threads: 2; node: 2; image: images/original/Mandelbrot-large.gif; n_images: 20; w: 1200; h: 1200; beta: 1; 
+time: 0.302772; process: 6; threads: 2; node: 2; image: images/original/porsche.gif; n_images: 1; w: 320; h: 200; beta: 1; 
+time: 0.232857; process: 6; threads: 2; node: 2; image: images/original/Produits_sous_linux.gif; n_images: 1; w: 800; h: 950; beta: 1; 
+time: 0.294254; process: 6; threads: 2; node: 2; image: images/original/TimelyHugeGnu.gif; n_images: 19; w: 640; h: 360; beta: 1; 
+time: 0.268310; process: 6; threads: 2; node: 2; image: images/original/tumblr_myxlbtwVEb1qzt4vjo1_r14_500_large.gif; n_images: 10; w: 480; h: 480; beta: 1; 
+time: 0.214701; process: 6; threads: 2; node: 2; image: images/original/wave.gif; n_images: 1; w: 1024; h: 1024; beta: 1; 

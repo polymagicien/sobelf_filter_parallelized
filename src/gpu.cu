@@ -1,30 +1,24 @@
-
 #include <cuda.h>
+extern "C" {
+    #include "gpu.h"
+}
 
 #define CONV_COL(l,c,nb_l) \
     (c)*(nb_l)+(l) 
 
-typedef struct pixel
-{
-    int r ; /* Red */
-    int g ; /* Green */
-    int b ; /* Blue */
-} pixel ;
+#define DIV 3
 
-
-__global__ void apply_blur_filter_one_iter_col( pixel * res, pixel * p, int * end, int width, int height, int size_stencil){
-
-    int n_block = blockIdx.x + gridDim.x * blockIdx.y + gridDim.x * gridDim.y * blockIdx.z;
-    int n_thread_in_block = threadIdx.x + blockDim.x * threadIdx.y + blockDim.x * blockDim.y * threadIdx.z;
-    
-    int n = n_block * blockDim.x * blockDim.y * blockDim.z + n_thread_in_block;
-
+__global__ void apply_blur_filter_one_iter_col_gpu( pixel * res, pixel * p, int * end, int width, int height, int size_stencil, int threshold){
+  
+    int n = blockIdx.x * blockDim.x  + threadIdx.x;
     int n_pixels = width * height;
 
     int i = n % height;
-    int i = n / height;
-    int blurred_top = ( i >= size_stencil && i < height/10 && i >= size_stencil && i < width-size_stencil);
-    int blurred_bottom = ( i < height-size_stencil && i >= height*9/10 && i >= size_stencil && i <n_blocks
+    int j = n / height;
+
+    int blurred_top = ( i >= size_stencil && i < height/10-size_stencil  && j >= size_stencil && j < width-size_stencil);
+    int blurred_bottom = ( i < height-size_stencil && i >= height*0.9+size_stencil && j >= size_stencil && j < width-size_stencil );
+    int blurred = blurred_bottom || blurred_top;
 
     if( n < n_pixels){
         // 1. copy
@@ -43,9 +37,9 @@ __global__ void apply_blur_filter_one_iter_col( pixel * res, pixel * p, int * en
             {
                 for ( stencil_j = -size_stencil ; stencil_j <= size_stencil ; stencil_j++ )
                 {
-                    t_r += p[CONV_COL(i+stencil_i, i+stencil_j,height)].r ;
-                    t_g += p[CONV_COL(i+stencil_i, i+stencil_j,height)].g ;
-                    t_b += p[CONV_COL(i+stencil_i, i+stencil_j,height)].b ;
+                    t_r += p[CONV_COL(i+stencil_i, j+stencil_j,height)].r ;
+                    t_g += p[CONV_COL(i+stencil_i, j+stencil_j,height)].g ;
+                    t_b += p[CONV_COL(i+stencil_i, j+stencil_j,height)].b ;
                 }
             }
 
@@ -75,39 +69,48 @@ __global__ void apply_blur_filter_one_iter_col( pixel * res, pixel * p, int * en
             ) {
             *end = 0 ;
         }
-
-        p[n].r = res[n].r ;
-        p[n].g = res[n].g ;
-        p[n].b = res[n].b ;
     }
 }
 
 // img in COLUMNS
-int gpu_part(int width, int height, pixel *p, int size, int threshold, pixel *res, int *end)
+extern "C"
+void gpu_part(int width, int height, pixel *p, int size, int threshold, pixel *res, int *end)
 {
-    int i, j;
     int length = width * height ;
-
-    pixel *d_p, *d_res;
     int *d_end;
-    cudaMalloc((void **)&d_p, length * sizeof(pixel)) ;
-    cudaMalloc((void **)&d_res, length * sizeof(pixel)) ;
-    cudaMalloc((void **)&d_end, sizeof(int)) ;
-    cudaMemcpy(d_p, p, length * sizeof(pixel), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_end, end, length * sizeof(pixel), cudaMemcpyHostToDevice);
+    pixel *d_p, *d_res;
+    cudaError_t err;
 
     dim3 bl, t;
     int n_threads = 1000;
-    int n_blocks = length / n_threads;
+    int n_blocks = length / n_threads + 1;
+
+    if(( err = cudaMalloc((void **)&d_p, length * sizeof(pixel)) ) != cudaSuccess)
+        printf("\tERROR when malloc 1 : %s\n", cudaGetErrorString(err));
+    if( (err = cudaMalloc((void **)&d_res, length * sizeof(pixel)) ) != cudaSuccess)
+        printf("\tERROR when malloc 2: %s\n", cudaGetErrorString(err));
+    if( (err = cudaMalloc((void **)&d_end, sizeof(int)) ) != cudaSuccess)
+        printf("\tERROR when malloc 3: %s\n", cudaGetErrorString(err));
+    if( (err = cudaMemcpy(d_p, p, length * sizeof(pixel), cudaMemcpyHostToDevice) ) != cudaSuccess)
+        printf("\tERROR when copy 1: %s\n", cudaGetErrorString(err));
+    if( (err = cudaMemcpy(d_end, end, sizeof(int), cudaMemcpyHostToDevice) ) != cudaSuccess)
+        printf("\tERROR when copy 2: %s\n", cudaGetErrorString(err));   
+
     bl.x = n_blocks ;
-    bl.y = 1 ;
-    bl.z = 1 ;
-
     t.x = n_threads ;
-    t.y = 1 ;
 
-    apply_blur_filter_one_iter_col<<<bl,t>>>( d_res, d_p, end, width, height, size_stencil ) ;
+    apply_blur_filter_one_iter_col_gpu<<<bl,t>>>( d_res, d_p, d_end, width, height, size, threshold ) ;
     cudaDeviceSynchronize();
-    cudaMemcpy(end, d_end, length * sizeof(pixel), cudaMemcpyDeviceToHost);
-    // cudaMemcpy(res, d_res, length * sizeof(pixel), cudaMemcpyDeviceToHost);
+
+    if( (err = cudaMemcpy(end, d_end, sizeof(int), cudaMemcpyDeviceToHost) ) != cudaSuccess)
+        printf("\tERROR when copy 3: %s\n", cudaGetErrorString(err));   
+    cudaDeviceSynchronize();
+
+    if( (err = cudaMemcpy(p, d_res, length * sizeof(pixel), cudaMemcpyDeviceToHost) ) != cudaSuccess)
+        printf("\tERROR when copy 4: %s\n", cudaGetErrorString(err));   
+    cudaDeviceSynchronize();
+
+    cudaFree(d_p);
+    cudaFree(d_res);
+    cudaFree(d_end);
 }

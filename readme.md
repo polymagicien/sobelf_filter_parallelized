@@ -1,36 +1,28 @@
-# Rapport 
-
-## MPI
-- **Division du travail par image** (une image par process)
-  - Alloc et copie du header et des pixels dans un nouvel espace mémoire avant envoi (But : limiter les communications mais malloc gourmand)
-  - Envoi préalable d'un header puis envoie des pixels (technique adoptée)
-- On a fait quelques tests
-  - Temps d'envoi de grandes images entre deux process au sein d'un même noeud et inter noeud (facteur de 100 environ)
-
-Maintenant, on veut **diviser le travail au sein d'une image**
-- Problématique : pixels en lignes. Comment partager le travail équitablement (colonnes) si la mémoire n'est pas contigue?
-  - Hypothèse 1 : Trouver le rapport entre le temps passer sur les pixels à flouter, et le temps passer sur les pixels "centraux"
-    - Test : non concluant, puisqu'on ne sait pas combien d'itérations de blur sont nécéssaires. Dans le jeu de donnée : jusq'à 9 itérations
-  - Hypothèse : faire une rotation de l'image pour que les colonnes soient contigüe en mémoire
-    - Test : fort peu concluant (prend quasi autant de temps que le traitement lui même)
-  - Solution : créer un type MPI 'column' : fait une rotation (données reçu en colonnes), mais sans perte de performance (1 process (envoi à soi-même) = même temps que sans MPI)
-- Division colonnes --> Il faut renvoyer toutes les ghosts cells à chaque itération. **C'était long à coder, mais c'est fait!**
-  
-## OpenMP
-- Au départ : grain fin. ```#omp pragma parallel for``` pour toutes les boucles for. Problème : pas de gain (cause probable : création de threads coûteuse)
-- Evolution : gros grain.
+# IF ISSUE RUNNING
+CHANGE path cuda in source "set_env.sh.1" (lib --> lib64)
 
 
-## Idées stylée 
-### Qui marchent
-- Manière de diviser le travail entre les process (notamment avec les ghost cells qui se partagent)
-- 
+# Architecture
+There is two binaries here. 
+ - `test` was made to run a bunch of tests before implementing an improvement / optimisation. You can every function has comments, and you can see which tests were carried out.
+ - `main_sobelf` is the final version of what the project was meant to do. It implements all the features we had the time to test and implement.
 
-### Qui marchent pas 
-- Utiliser un scatter pour envoyer toutes les images même si pas mémoire contigüe (mais la différence de 2 pointeurs n'est pas tout le temps définie)
-- 
+# Parameters
+When testing our code on GIFs, you can choose : 
+ - To use GPUs or not
+ - To verify that the output image is the correct one (takes more time)
+
+# Make and run
+## Make
+ - Do not forget to run `source set_env.sh` beforehand.
+ - Run `make`
+
+## Run
+ - To run `main_sobelf`, please consider the following definition : `OMP_NUM_THREADS=1 salloc -n 1 - N 1 mpirun ./sobelf_main path_to_input_gif path_to_output_gif`
+ - To run a test, consider using `./test test_number`
+
+ ## Possible error
+  If the make or run step results in an error regarding a cuda library, consider using the given `set_env.sh` and not yours. Otherwise, replace `LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${CUDA_ROOT}/lib/` by `LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${CUDA_ROOT}/lib64/`.
 
 
-## Observations des données
-- Quand n_process * n_thread > 8, on passe sur plusieurs noeuds pour traiter une image et le temps s'effondre
-- Avec méthode gros grain : peu d'évolution avec plusieurs threads
+
