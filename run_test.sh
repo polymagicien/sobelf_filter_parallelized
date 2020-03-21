@@ -35,7 +35,7 @@ then
     # ./run_test #1 #2 
     
     let "FROMT=1"
-    let "TOT=4"
+    let "TOT=8"
     let "FROMP=1"
     let "TOP=8"
     let "NODES=1"
@@ -120,10 +120,57 @@ then
         for i in $INPUT_DIR/*gif ; do
             dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
             echo "Running test on $i -> $dest_filename with $THREADS threads, $PROCESSES processes on $NODES nodes"
-            salloc -N 1 -n 1 mpirun ./$2 $i $dest_filename $PERFORMANCE_FILE
+            OMP_NUM_THREADS=$t salloc -N 1 -n 1 -c $t mpirun ./$2 $i $dest_filename $PERFORMANCE_FILE
         done
     done
 fi
+
+if [ "$1" = "threads_method_2" ]
+then
+    # 1 : test to run
+    # 2 : binary tester
+    # 3 : input_file
+    # ./run_test #1 #2 #3 S
+
+    INPUT_DIR=images/original
+    OUTPUT_DIR=images/processed
+    source_filename=`basename $3 .gif`
+    mkdir $OUTPUT_DIR 2>/dev/null
+    for t in $(seq 1 6); do
+        for i in $INPUT_DIR/*gif ; do
+            dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
+            echo "Running test on $i -> $dest_filename with $THREADS threads, $PROCESSES processes on $NODES nodes"
+            OMP_NUM_THREADS=$t salloc -N 1 -n 1 -c $t mpirun ./$2 $i $dest_filename $PERFORMANCE_FILE
+        done
+    done
+fi
+
+
+if [ "$1" = "no_working_root" ]
+then
+    # 1 : test to run
+    # 2 : binary tester
+    # 3 : input_file
+    # ./run_test #1 #2 #3 S
+
+    let "NODES = 1"
+    let "res = 0"
+
+    INPUT_DIR=images/original
+    OUTPUT_DIR=images/processed
+    source_filename=`basename $3 .gif`
+    mkdir $OUTPUT_DIR 2>/dev/null
+    for w in $(seq 0 0); do
+        for p in $(seq 2 9); do
+            for i in $INPUT_DIR/*gif ; do
+                dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
+                echo "Running test on $i -> $dest_filename with $p processes on $NODES nodes"
+                OMP_NUM_THREADS=1 salloc -N 1 -n $p -c 1 mpirun ./$2 $i $dest_filename $3 1 $w
+            done
+        done
+    done
+fi
+
 
 
 

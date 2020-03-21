@@ -1359,32 +1359,28 @@ void fill_pixel_column_pointers_for_one_image(pixel* pixel_array[], pixel *img_p
     }
 }
 
-void fill_tables(img_info info_array[], pixel* pixel_array[], MPI_Datatype datatypes[], animated_gif * img, int n_parts_by_image[], int n_images){
+void fill_tables(img_info info_array[], pixel* pixel_array[], MPI_Datatype datatypes[], animated_gif * img, int n_parts_by_image[], int n_images, int root_work){
 
     animated_gif image = *img;
     int i;
 
     int parts_done = 0;
-    // #pragma omp parallel default(none) private(i) shared(info_array, pixel_array, datatypes, img, n_parts_by_image, n_images, image)
-    // {
-    //     #pragma omp for
-            for (i = 0; i < n_images; i++){
+    for (i = 0; i < n_images; i++){
 
-                int n_parts_this_img = n_parts_by_image[i];
+        int n_parts_this_img = n_parts_by_image[i];
 
-                // FILL DATATYPE : Create this image's column datatype (handling different heights)
-                datatypes[i] = create_column(image.width[i], image.height[i]);
+        // FILL DATATYPE : Create this image's column datatype (handling different heights)
+        datatypes[i] = create_column(image.width[i], image.height[i]);
 
-                // FILL INFO_ARRAY : create all the img_info of the parts of this image
-                fill_info_part_for_one_image(info_array, n_parts_this_img, parts_done, i, image.width[i], image.height[i]);
+        // FILL INFO_ARRAY : create all the img_info of the parts of this image
+        fill_info_part_for_one_image(info_array, n_parts_this_img, parts_done, i, image.width[i], image.height[i]);
 
-                // FILL PIXEL ARRAY : 
-                fill_pixel_column_pointers_for_one_image( pixel_array, image.p[i], n_parts_this_img, parts_done, i, info_array );
+        // FILL PIXEL ARRAY : 
+        fill_pixel_column_pointers_for_one_image( pixel_array, image.p[i], n_parts_this_img, parts_done, i, info_array );
 
-                // UPDATE PARTS_DONE
-                parts_done+= n_parts_this_img;
-            }
-    // }
+        // UPDATE PARTS_DONE
+        parts_done+= n_parts_this_img;
+    }
 }
 
 
@@ -1635,7 +1631,7 @@ int main( int argc, char ** argv ){
     int n_process, rank;
     int given;
 
-    MPI_Init_thread(&argc, &argv,3,&given);
+    MPI_Init_thread(&argc, &argv,2,&given);
     MPI_Comm_size(MPI_COMM_WORLD, &n_process);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
@@ -1658,11 +1654,12 @@ int main( int argc, char ** argv ){
     int height = 0;
     int width = 0;
     MPI_Comm local_comm;
+    MPI_Comm COM_WORLD_BIS;
     int root_work = 1; // to set if you want that the root process work or not
     int other_tech_threads = 0, pict_simultaneous = 1; // 
 
 
-    int only_one_process = 1;
+    int only_one_process = 0;
 
 
     img_info *parts_info = NULL;
@@ -1682,6 +1679,9 @@ int main( int argc, char ** argv ){
     if (argc >=5){
         beta = atoi(argv[4]);
     }
+    if (argc >= 6){
+        root_work = atoi(argv[5]);
+    }
     char *input_filename = argv[1];
     char *output_filename = argv[2];
 
@@ -1699,7 +1699,7 @@ int main( int argc, char ** argv ){
         width = image->width[0];
         gettimeofday(&t11, NULL);
 
-        if (only_one_process){
+        if (!only_one_process){
                     // Choose how to split images between process
         int n_parts_per_img[n_images];
         get_heuristic2(&n_rounds, &n_parts, n_parts_per_img, n_process,n_images,beta);
@@ -1714,7 +1714,7 @@ int main( int argc, char ** argv ){
         COLUMNS = (MPI_Datatype*)malloc(n_images * sizeof(MPI_Datatype));
 
         // Fill_info_parts and pixel_arts and columns 
-        fill_tables(parts_info,parts_pixel,COLUMNS,image,n_parts_per_img, n_images);
+        fill_tables(parts_info,parts_pixel,COLUMNS,image,n_parts_per_img, n_images, root_work);
         }
 
     }
@@ -1726,6 +1726,12 @@ int main( int argc, char ** argv ){
     if (pseudo_rank == -1)
         pseudo_rank = 10000;
     MPI_Comm_split(MPI_COMM_WORLD, pseudo_rank/n_parts, pseudo_rank, &local_comm);
+
+    int will_participate = 1;
+    if (root_work == 0 && rank == 0)
+        will_participate = 0;
+
+    MPI_Comm_split(MPI_COMM_WORLD, will_participate, pseudo_rank, &COM_WORLD_BIS);
     
     if(rank == 0){
         
@@ -1736,16 +1742,38 @@ int main( int argc, char ** argv ){
         MPI_Request req;
         img_info lol;
 
+        int root_not_work = 1 - root_work;
+        
+        int displs[n_process + root_not_work];
+        int tab_leng[n_process + root_not_work];
+        displs[0] = 0;
+        tab_leng[0] = n_int_img_info;
+        if (n_process + root_not_work>1){
+            if (!root_work){
+                displs[1] = 0;
+            } else {
+                displs[1] = n_int_img_info;
+            }
+            tab_leng[1] = n_int_img_info;
+            for (i=2; i < n_process + root_not_work; i++){
+                displs[i] = displs[i-1] + n_int_img_info;
+                tab_leng[i] = n_int_img_info;
+            }
+        }
+
+
         if (only_one_process){
+
+            
+            printf("Solomode activated with ");
 
             gettimeofday(&t11, NULL);
 
             #pragma omp parallel default(none) shared(image)
             {
-
-                printf("Solomode activated\n");
+                printf(" | ");
                 int i;
-                #pragma omp for schedule(static,2) nowait
+                #pragma omp for nowait
                 for (i=0; i < image->n_images; i++){
                       /* Convert the pixels into grayscale */
                     apply_gray_filter_initial_one_image( image,i ) ;
@@ -1755,16 +1783,25 @@ int main( int argc, char ** argv ){
 
                     /* Apply sobel filter on pixels */
                     apply_sobel_filter_initial_one_image( image,i ) ;
+
+                    printf(".");
                 }
             }
 
             gettimeofday(&t12, NULL);
 
-            printf_time("total", t11, t12);
+            printf_time("\ntotal", t11, t12);
+
+            FILE *filetow = fopen("performance/test_threads_second_method.txt", "a");
+            double duration = (t12.tv_sec-t11.tv_sec)+((t12.tv_usec-t11.tv_usec)/1e6);
+            char *name = input_filename;
+            fprintf(filetow, "time: %lf; process: %d; threads: %d; node: %d; image: %s; n_images: %d; w: %d; h: %d; beta: %d; \n", duration, 1, num_threads, 1, name, n_images, width, height,beta ) ;
+            fclose(filetow);
 
 
 
         } else {
+
 
             // SENDING THE IMAGE IN PARTS
 
@@ -1775,10 +1812,10 @@ int main( int argc, char ** argv ){
                 int n_part_to_send =  n_process;
                 int root_part =  parts_done;
                 img_info *begin_table = parts_info + root_part;
-                parts_done++;
 
                 // Send the part_info to the process
-                MPI_Scatter(begin_table -(1-root_work), n_int_img_info, MPI_INT,&lol,n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
+                MPI_Scatterv(begin_table,tab_leng,displs,MPI_INT,&lol,n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
+                //MPI_Scatter(begin_table -(1-root_work), n_int_img_info, MPI_INT,&lol,n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
 
                 // Sending the images
                 int beginning = root_work;
@@ -1803,15 +1840,16 @@ int main( int argc, char ** argv ){
                     int n_pixels_to_send = parts_info[root_part].n_columns * parts_info[root_part].height;
                     MPI_Isend(pixel_recv, n_pixels_to_send * 3, MPI_INT, 0, status.MPI_TAG, MPI_COMM_SELF, &req);
                     MPI_Recv(parts_pixel[root_part], parts_info[root_part].n_columns, COLUMNS[parts_info[root_part].image], 0, MPI_ANY_TAG, MPI_COMM_SELF, &status);
+
+                    parts_done++;
                 }
 
                 // RECEIVING THE PARTS 
                 //printf("receiving in round %i\n", r);
                 for (j=beginning; j < ending; j++){
-                    
+
                     MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD,&status);
                     int pn = status.MPI_SOURCE - (1-root_work);
-                    //printf(" from %i \n", pn);
                     MPI_Recv(parts_pixel[root_part + pn], parts_info[root_part + pn].n_columns, COLUMNS[parts_info[root_part + pn].image], status.MPI_SOURCE, status.MPI_TAG, MPI_COMM_WORLD, &status);
                         
                 }
@@ -1831,7 +1869,7 @@ int main( int argc, char ** argv ){
                 FILE *filetow = fopen(perf_filename, "a");
                 double duration = (t12.tv_sec-t11.tv_sec)+((t12.tv_usec-t11.tv_usec)/1e6);
                 char *name = input_filename;
-                fprintf(filetow, "time: %lf; process: %d; threads: %d; node: %d; image: %s; n_images: %d; w: %d; h: %d; beta: %d; \n", duration, n_process, num_threads, nodes, name, n_images, width, height,beta ) ;
+                fprintf(filetow, "time: %lf; process: %d; threads: %d; node: %d; image: %s; n_images: %d; w: %d; h: %d; beta: %d; root_work: %d \n", duration, n_process, num_threads, nodes, name, n_images, width, height,beta, root_work ) ;
                 fclose(filetow);
             }
 
@@ -1866,17 +1904,16 @@ int main( int argc, char ** argv ){
             else    printf("NOT ok\n");
         }
 
-
         // Export the gif
-        if ( !store_pixels( output_filename, image ) )
+        if ( !store_pixels( output_filename, image ) ){
             return 1 ;
+        }
 
         // Stop all process
-        
         if (!only_one_process){
-            for(i=0; i < n_process + 1-root_work; i++)
+            for(i=0; i < n_process; i++)
                 parts_info[i].height = 0;
-            MPI_Scatter(parts_info, n_int_img_info, MPI_INT,&lol,n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
+            MPI_Scatterv(parts_info, tab_leng,displs, MPI_INT,&lol,n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
         }
     }
     else {
@@ -1888,7 +1925,7 @@ int main( int argc, char ** argv ){
         while(1){
 
             // Check what is sent
-            MPI_Scatter(NULL,0,MPI_INT,&info_recv, n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
+            MPI_Scatterv(NULL,NULL,NULL,MPI_INT,&info_recv, n_int_img_info, MPI_INT,0,MPI_COMM_WORLD);
             
             int n_pixels_recv = info_recv.height * info_recv.width;
 
