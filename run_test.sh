@@ -50,6 +50,43 @@ then
     fi
 fi
 
+if [ "$1" = "single" ]
+then
+    if [ "$2" = "-h" ]
+    then
+        echo "USAGE: ./run_test.sh single [executable] [n_process] [n_threads] [beta] [root_work] [verif_gif] [gpu_activated] "
+    else
+        # 1 : test to run
+        # 2 : binary tester
+        # 3 : number of process
+        # 4 : number of threads
+        # 5 : beta activated
+        # 6 : root_work
+        # 7 : verif_gif
+        # 8 : gpu activated
+        # ./run_test #1 #2 
+        
+        INPUT_DIR=images/original
+        OUTPUT_DIR=images/processed
+        mkdir $OUTPUT_DIR 2>/dev/null
+
+        ((PROC_BY_NODE= 8/$4))
+        ((NODES= $3%$PROC_BY_NODE))
+        if [ $NODES = "0" ]
+        then
+            ((NODES= $3/$PROC_BY_NODE))
+        else
+            ((NODES= $3/$PROC_BY_NODE+1))
+        fi
+
+        for i in $INPUT_DIR/*gif ; do
+            dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
+            echo "Running test on $i -> $dest_filename with $4 threads, $3 processes on $NODES nodes (options: -beta $5 -rootwork $6 -verifgif $7 -gpu $8)"
+            OMP_NUM_THREADS=$4 salloc -N $NODES -c $4 -n $3 mpirun ./$2 $i $dest_filename -beta $5 -rootwork $6 -verifgif $7 -gpu $8
+        done
+    fi
+fi
+
 
 if [ "$1" = "initial" ]
 then
@@ -115,6 +152,29 @@ then
                 dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
                 echo "Running test on $i -> $dest_filename with $p processes on $NODES nodes"
                 OMP_NUM_THREADS=1 salloc -N 1 -n $p -c 1 mpirun ./$2 $i $dest_filename -file $3 -beta 1 -rootwork $w -verifgif 1
+            done
+        done
+    done
+fi
+
+
+
+if [ "$1" = "limit_optimization" ]
+then
+    # 1 : test to run
+    # 2 : binary tester
+    # ./run_test #1 #2 
+    
+    INPUT_DIR=images/original
+    OUTPUT_DIR=images/processed
+    mkdir $OUTPUT_DIR 2>/dev/null
+
+    for glim in $(seq 0 12); do #gpu threshold
+        for plim in $(seq 2 8); do #process number limit
+            for i in $INPUT_DIR/*gif ; do
+                dest_filename=$OUTPUT_DIR/`basename $i .gif`-sobel.gif
+                echo "Running test on $i -> $dest_filename with 1 threads, 8 processes on 1 nodes (plim = $plim and glim= $glim)"
+                OMP_NUM_THREADS=1 salloc -N 1 -c 1 -n 8 mpirun ./$2 $i $dest_filename -file performance/test_final_params.txt -plim $plim -glim $glim
             done
         done
     done

@@ -14,11 +14,23 @@ SRC_main= dgif_lib.c \
 	gif_font.c \
 	gif_hash.c \
 	gifalloc.c \
+	utils.c \
+	gpu.cu \
 	main.c \
 	openbsd-reallocarray.c \
 	quantize.c
 
-OBJ_main= $(SRC_main:%.c=obj/%.o)
+OBJ_main= $(OBJ_DIR)/quantize.o \
+	$(OBJ_DIR)/gpu.o \
+	$(OBJ_DIR)/dgif_lib.o \
+	$(OBJ_DIR)/egif_lib.o \
+	$(OBJ_DIR)/gif_err.o \
+	$(OBJ_DIR)/gif_font.o \
+	$(OBJ_DIR)/gif_hash.o \
+	$(OBJ_DIR)/gifalloc.o \
+	$(OBJ_DIR)/utils.o \
+	$(OBJ_DIR)/main.o \
+	$(OBJ_DIR)/openbsd-reallocarray.o \
 
 SRC_main_nc= dgif_lib.c \
 	egif_lib.c \
@@ -138,7 +150,7 @@ $(OBJ_DIR)/%.o : $(SRC_DIR)/%.cu
 	# nvcc -O3 -I$(HEADER_DIR) -c -o $@ $^
 
 sobelf_main:$(OBJ_main)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -L/usr/local/cuda/lib64 -lcudart
 
 sobelf_initial:$(OBJ_initial)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
