@@ -21,7 +21,6 @@
 #define SIZE_STENCIL 5
 
 int USE_GPU = 0;
-int GPU_LIMIT = 10000000;
 int PROCCESS_LIMIT = 6;
 
 /****************************************************************************************************************************************************/
@@ -167,7 +166,7 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
     n_int_ghost_cells = SIZE_STENCIL * height_recv * sizeof(pixel) / sizeof(int);
 
     int use_gpu_this_time = USE_GPU;
-    if ((double)(height_recv * width_recv) > (double)(GPU_LIMIT)*1000){
+    if ((double)(height_recv * width_recv) > 1000000){
         use_gpu_this_time = 1;
     } 
 
@@ -178,7 +177,7 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
     // Used in functions to store (cannot be declared in omp parallel)
     pixel *interm = (pixel *)malloc(width_recv * height_recv * sizeof( pixel ) );
 
-    #pragma omp parallel default(none) shared(USE_GPU, pixel_recv, height_recv, width_recv, end_local, end_global, interm, rank_left, rank_right, pixel_ghost_left, pixel_middle, pixel_ghost_right, pixel_middle_plus, n_int_ghost_cells, local_comm, ompi_mpi_op_land, ompi_mpi_int, status_right, status_left, rank)
+    #pragma omp parallel default(none) shared(USE_GPU, pixel_recv, height_recv, width_recv,use_gpu_this_time, end_local, end_global, interm, rank_left, rank_right, pixel_ghost_left, pixel_middle, pixel_ghost_right, pixel_middle_plus, n_int_ghost_cells, local_comm, ompi_mpi_op_land, ompi_mpi_int, status_right, status_left, rank)
     {   
 
         apply_gray_filter_one_img(width_recv, height_recv, pixel_recv);
@@ -191,7 +190,7 @@ void call_worker(MPI_Comm local_comm, img_info info_recv, pixel *pixel_recv, int
             end_local = 1;
             counter++;
 
-            if(USE_GPU)
+            if(use_gpu_this_time)
                 gpu_part(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20, interm, &end_local);
             else 
                 apply_blur_filter_one_iter_col(width_recv, height_recv, pixel_recv, SIZE_STENCIL, 20, interm, &end_local);
@@ -327,14 +326,13 @@ void get_heuristics(int *n_rounds, int *n_parts_per_img, int table_n_img[], int 
 }
 
 void set_optimal_parameters(int *n_process, int *num_threads, int *reduced_process, int *root_work){
-    
     // Do not work inter-nodes
     if (*n_process * *num_threads > 8){
         *reduced_process = 1;
         *n_process = 8/ *num_threads;
     }
 
-    // Optimal number of process is 6
+    // Optimal number of process is 8
     if (*n_process > PROCCESS_LIMIT){
         *reduced_process = 1;
         *n_process = PROCCESS_LIMIT + 1;
@@ -356,12 +354,12 @@ int main( int argc, char ** argv ){
 
     int num_threads = 1;
 
-#ifdef _OPENMP
-    #pragma omp parallel
-    {
-        num_threads = omp_get_num_threads();
-    }
-#endif
+    #ifdef _OPENMP
+        #pragma omp parallel
+        {
+            num_threads = omp_get_num_threads();
+        }
+    #endif
 
     /* -------------------- VARIABLES FOR OPTIONS -------------------- */
 
@@ -378,20 +376,13 @@ int main( int argc, char ** argv ){
     char *input_filename = argv[1];
     char *output_filename = argv[2];
 
-    int i,j, c=3;
+    int i,j;
     for (i = 3; i < argc-1; i++){
         if (strcmp(argv[i], "-file") == 0){
             is_file_performance = 1;
             perf_filename = argv[i+1];
         }
-        if (strcmp(argv[i], "-plim") == 0){
-            PROCCESS_LIMIT = atoi(argv[i+1]);
-        }
-        if (strcmp(argv[i], "-glim") == 0){
-            GPU_LIMIT = atoi(argv[i+1])*5000;
-        }
     }
-
 
     /* -------------------- FIRST ALLOCATIONS -------------------- */ 
 
@@ -412,7 +403,6 @@ int main( int argc, char ** argv ){
 
     set_optimal_parameters(&n_process, &num_threads, &reduced_process, &root_work);
     int root_not_work = 1 - root_work;
-
 
     /* -------------------- CHOOSING THE CUTTING STRATEGY -------------------- */ 
     if(rank == 0){
@@ -444,6 +434,7 @@ int main( int argc, char ** argv ){
     /* -------------------- CREATING ALL THE DIFFERENT COMMUNICATORS -------------------- */ 
     MPI_Bcast(&n_parts, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&root_work, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
     int pseudo_rank = (rank == 0 && root_work == 0) ? 1000 : rank - root_not_work;
     MPI_Comm_split(MPI_COMM_WORLD, pseudo_rank/n_parts, pseudo_rank, &local_comm);
 
@@ -535,7 +526,7 @@ int main( int argc, char ** argv ){
         // Save result if needed
         if(is_file_performance == 1){
 
-            int HAS_USED_GPU = ((double)(parts_info[0].width) * parts_info[0].height > (double)(GPU_LIMIT) * 1000) ? 1 : 0;
+            int HAS_USED_GPU = ((double)(parts_info[0].width) * parts_info[0].height > 1000000) ? 1 : 0;
 
             int proc_node = 8/num_threads;
             int nodes = n_process/proc_node;
@@ -545,7 +536,7 @@ int main( int argc, char ** argv ){
             FILE *filetow = fopen(perf_filename, "a");
             double duration = (t12.tv_sec-t11.tv_sec)+((t12.tv_usec-t11.tv_usec)/1e6);
             char *name = input_filename;
-            fprintf(filetow, "time: %lf; process: %d; threads: %d; node: %d; image: %s; n_images: %d; w: %d; h: %d; beta: %d; root_work: %d; gpu: %d; process_lim: %d; gpu_threshold: %d \n", duration, n_process, num_threads, nodes, name, n_images, width, height,beta, root_work, HAS_USED_GPU, PROCCESS_LIMIT, GPU_LIMIT) ;
+            fprintf(filetow, "time: %lf; process: %d; threads: %d; node: %d; image: %s; n_images: %d; w: %d; h: %d; beta: %d; root_work: %d; gpu: %d; \n", duration, n_process, num_threads, nodes, name, n_images, width, height,beta, root_work, HAS_USED_GPU) ;
             fclose(filetow);
         }
 
